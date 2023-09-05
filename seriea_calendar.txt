@@ -1,0 +1,403 @@
+4ª giornata	
+17 set.	Cagliari-Udinese	12:30
+Fiorentina-Atalanta	18:00
+Frosinone-Sassuolo	15:00
+16 set.	Genoa-Napoli	20:45
+Inter-Milan	18:00
+Juventus-Lazio	15:00
+17 set.	Monza-Lecce	15:00
+Roma-Empoli	20:45
+18 set.	Salernitana-Torino	18:30
+Verona-Bologna	20:45
+
+5ª giornata	
+24 set.	Atalanta-Cagliari	-
+Bologna-Napoli	-
+Empoli-Inter	-
+Lazio-Monza	-
+Lecce-Genoa	-
+Milan-Verona	-
+Salernitana-Frosinone	-
+Sassuolo-Juventus	-
+Torino-Roma	-
+Udinese-Fiorentina	-
+6ª giornata	
+27 set.	Cagliari-Milan	-
+Empoli-Salernitana	-
+Frosinone-Fiorentina	-
+Genoa-Roma	-
+Inter-Sassuolo	-
+Juventus-Lecce	-
+Lazio-Torino	-
+Monza-Bologna	-
+Napoli-Udinese	-
+Verona-Atalanta	-
+
+7ª giornata	
+1º ott.	Atalanta-Juventus	-
+Bologna-Empoli	-
+Fiorentina-Cagliari	-
+Lecce-Napoli	-
+Milan-Lazio	-
+Roma-Frosinone	-
+Salernitana-Inter	-
+Sassuolo-Monza	-
+Torino-Verona	-
+Udinese-Genoa	-
+8ª giornata	
+8 ott.	Cagliari-Roma	-
+Empoli-Udinese	-
+Frosinone-Verona	-
+Genoa-Milan	-
+Inter-Bologna	-
+Juventus-Torino	-
+Lazio-Atalanta	-
+Lecce-Sassuolo	-
+Monza-Salernitana	-
+Napoli-Fiorentina	-
+
+9ª giornata	
+22 ott.	Atalanta-Genoa	-
+Bologna-Frosinone	-
+Fiorentina-Empoli	-
+Milan-Juventus	-
+Roma-Monza	-
+Salernitana-Cagliari	-
+Sassuolo-Lazio	-
+Torino-Inter	-
+Udinese-Lecce	-
+Verona-Napoli	-
+10ª giornata	
+29 ott.	Cagliari-Frosinone	-
+Empoli-Atalanta	-
+Genoa-Salernitana	-
+Inter-Roma	-
+Juventus-Verona	-
+Lazio-Fiorentina	-
+Lecce-Torino	-
+Monza-Udinese	-
+Napoli-Milan	-
+Sassuolo-Bologna	-
+
+11ª giornata	
+5 nov.	Atalanta-Inter	-
+Bologna-Lazio	-
+Cagliari-Genoa	-
+Fiorentina-Juventus	-
+Frosinone-Empoli	-
+Milan-Udinese	-
+Roma-Lecce	-
+Salernitana-Napoli	-
+Torino-Sassuolo	-
+Verona-Monza	-
+12ª giornata	
+12 nov.	Fiorentina-Bologna	-
+Genoa-Verona	-
+Inter-Frosinone	-
+Juventus-Cagliari	-
+Lazio-Roma	-
+Lecce-Milan	-
+Monza-Torino	-
+Napoli-Empoli	-
+Sassuolo-Salernitana	-
+Udinese-Atalanta	-
+
+13ª giornata	
+26 nov.	Atalanta-Napoli	-
+Bologna-Torino	-
+Cagliari-Monza	-
+Empoli-Sassuolo	-
+Frosinone-Genoa	-
+Juventus-Inter	-
+Milan-Fiorentina	-
+Roma-Udinese	-
+Salernitana-Lazio	-
+Verona-Lecce	-
+14ª giornata	
+3 dic.	Fiorentina-Salernitana	-
+Genoa-Empoli	-
+Lazio-Cagliari	-
+Lecce-Bologna	-
+Milan-Frosinone	-
+Monza-Juventus	-
+Napoli-Inter	-
+Sassuolo-Roma	-
+Torino-Atalanta	-
+Udinese-Verona	-
+
+15ª giornata	
+10 dic.	Atalanta-Milan	-
+Cagliari-Sassuolo	-
+Empoli-Lecce	-
+Frosinone-Torino	-
+Inter-Udinese	-
+Juventus-Napoli	-
+Monza-Genoa	-
+Roma-Fiorentina	-
+Salernitana-Bologna	-
+Verona-Lazio	-
+16ª giornata	
+17 dic.	Atalanta-Salernitana	-
+Bologna-Roma	-
+Fiorentina-Verona	-
+Genoa-Juventus	-
+Lazio-Inter	-
+Lecce-Frosinone	-
+Milan-Monza	-
+Napoli-Cagliari	-
+Torino-Empoli	-
+Udinese-Sassuolo	-
+
+17ª giornata	
+23 dic.	Bologna-Atalanta	-
+Empoli-Lazio	-
+Frosinone-Juventus	-
+Inter-Lecce	-
+Monza-Fiorentina	-
+Roma-Napoli	-
+Salernitana-Milan	-
+Sassuolo-Genoa	-
+Torino-Udinese	-
+Verona-Cagliari	-
+18ª giornata	
+30 dic.	Atalanta-Lecce	-
+Cagliari-Empoli	-
+Fiorentina-Torino	-
+Genoa-Inter	-
+Juventus-Roma	-
+Lazio-Frosinone	-
+Milan-Sassuolo	-
+Napoli-Monza	-
+Udinese-Bologna	-
+Verona-Salernitana	-
+
+19ª giornata	
+7 gen.	Bologna-Genoa	-
+Empoli-Milan	-
+Frosinone-Monza	-
+Inter-Verona	-
+Lecce-Cagliari	-
+Roma-Atalanta	-
+Salernitana-Juventus	-
+Sassuolo-Fiorentina	-
+Torino-Napoli	-
+Udinese-Lazio	-
+Girone di ritorno
+20ª giornata	
+14 gen.	Atalanta-Frosinone	-
+Cagliari-Bologna	-
+Fiorentina-Udinese	-
+Genoa-Torino	-
+Juventus-Sassuolo	-
+Lazio-Lecce	-
+Milan-Roma	-
+Monza-Inter	-
+Napoli-Salernitana	-
+Verona-Empoli	-
+21ª giornata	
+21 gen.	Bologna-Fiorentina	-
+Empoli-Monza	-
+Frosinone-Cagliari	-
+Inter-Atalanta	-
+Lecce-Juventus	-
+Roma-Verona	-
+Salernitana-Genoa	-
+Sassuolo-Napoli	-
+Torino-Lazio	-
+Udinese-Milan	-
+
+22ª giornata	
+28 gen.	Atalanta-Udinese	-
+Cagliari-Torino	-
+Fiorentina-Inter	-
+Genoa-Lecce	-
+Juventus-Empoli	-
+Lazio-Napoli	-
+Milan-Bologna	-
+Monza-Sassuolo	-
+Salernitana-Roma	-
+Verona-Frosinone	-
+23ª giornata	
+4 feb.	Atalanta-Lazio	-
+Bologna-Sassuolo	-
+Empoli-Genoa	-
+Frosinone-Milan	-
+Inter-Juventus	-
+Lecce-Fiorentina	-
+Napoli-Verona	-
+Roma-Cagliari	-
+Torino-Salernitana	-
+Udinese-Monza	-
+
+24ª giornata	
+11 feb.	Bologna-Lecce	-
+Cagliari-Lazio	-
+Fiorentina-Frosinone	-
+Genoa-Atalanta	-
+Juventus-Udinese	-
+Milan-Napoli	-
+Monza-Verona	-
+Roma-Inter	-
+Salernitana-Empoli	-
+Sassuolo-Torino	-
+25ª giornata	
+18 feb.	Atalanta-Sassuolo	-
+Empoli-Fiorentina	-
+Frosinone-Roma	-
+Inter-Salernitana	-
+Lazio-Bologna	-
+Monza-Milan	-
+Napoli-Genoa	-
+Torino-Lecce	-
+Udinese-Cagliari	-
+Verona-Juventus	-
+
+26ª giornata	
+25 feb.	Bologna-Verona	-
+Cagliari-Napoli	-
+Fiorentina-Lazio	-
+Genoa-Udinese	-
+Juventus-Frosinone	-
+Lecce-Inter	-
+Milan-Atalanta	-
+Roma-Torino	-
+Salernitana-Monza	-
+Sassuolo-Empoli	-
+27ª giornata	
+3 mar.	Atalanta-Bologna	-
+Empoli-Cagliari	-
+Frosinone-Lecce	-
+Inter-Genoa	-
+Lazio-Milan	-
+Monza-Roma	-
+Napoli-Juventus	-
+Torino-Fiorentina	-
+Udinese-Salernitana	-
+Verona-Sassuolo	-
+
+28ª giornata	
+10 mar.	Bologna-Inter	-
+Cagliari-Salernitana	-
+Fiorentina-Roma	-
+Genoa-Monza	-
+Juventus-Atalanta	-
+Lazio-Udinese	-
+Lecce-Verona	-
+Milan-Empoli	-
+Napoli-Torino	-
+Sassuolo-Frosinone	-
+29ª giornata	
+17 mar.	Atalanta-Fiorentina	-
+Empoli-Bologna	-
+Frosinone-Lazio	-
+Inter-Napoli	-
+Juventus-Genoa	-
+Monza-Cagliari	-
+Roma-Sassuolo	-
+Salernitana-Lecce	-
+Udinese-Torino	-
+Verona-Milan	-
+
+30ª giornata	
+30 mar.	Bologna-Salernitana	-
+Cagliari-Verona	-
+Fiorentina-Milan	-
+Genoa-Frosinone	-
+Inter-Empoli	-
+Lazio-Juventus	-
+Lecce-Roma	-
+Napoli-Atalanta	-
+Sassuolo-Udinese	-
+Torino-Monza	-
+31ª giornata	
+7 apr.	Cagliari-Atalanta	-
+Empoli-Torino	-
+Frosinone-Bologna	-
+Juventus-Fiorentina	-
+Milan-Lecce	-
+Monza-Napoli	-
+Roma-Lazio	-
+Salernitana-Sassuolo	-
+Udinese-Inter	-
+Verona-Genoa	-
+
+32ª giornata	
+14 apr.	Atalanta-Verona	-
+Bologna-Monza	-
+Fiorentina-Genoa	-
+Inter-Cagliari	-
+Lazio-Salernitana	-
+Lecce-Empoli	-
+Napoli-Frosinone	-
+Sassuolo-Milan	-
+Torino-Juventus	-
+Udinese-Roma	-
+33ª giornata	
+21 apr.	Cagliari-Juventus	-
+Empoli-Napoli	-
+Genoa-Lazio	-
+Milan-Inter	-
+Monza-Atalanta	-
+Roma-Bologna	-
+Salernitana-Fiorentina	-
+Sassuolo-Lecce	-
+Torino-Frosinone	-
+Verona-Udinese	-
+
+34ª giornata	
+28 apr.	Atalanta-Empoli	-
+Bologna-Udinese	-
+Fiorentina-Sassuolo	-
+Frosinone-Salernitana	-
+Genoa-Cagliari	-
+Inter-Torino	-
+Juventus-Milan	-
+Lazio-Verona	-
+Lecce-Monza	-
+Napoli-Roma	-
+35ª giornata	
+5 mag.	Cagliari-Lecce	-
+Empoli-Frosinone	-
+Milan-Genoa	-
+Monza-Lazio	-
+Roma-Juventus	-
+Salernitana-Atalanta	-
+Sassuolo-Inter	-
+Torino-Bologna	-
+Udinese-Napoli	-
+Verona-Fiorentina	-
+
+36ª giornata	
+12 mag.	Atalanta-Roma	-
+Fiorentina-Monza	-
+Frosinone-Inter	-
+Genoa-Sassuolo	-
+Juventus-Salernitana	-
+Lazio-Empoli	-
+Lecce-Udinese	-
+Milan-Cagliari	-
+Napoli-Bologna	-
+Verona-Torino	-
+37ª giornata	
+19 mag.	Bologna-Juventus	-
+Fiorentina-Napoli	-
+Inter-Lazio	-
+Lecce-Atalanta	-
+Monza-Frosinone	-
+Roma-Genoa	-
+Salernitana-Verona	-
+Sassuolo-Cagliari	-
+Torino-Milan	-
+Udinese-Empoli	-
+
+38ª giornata	
+26 mag.	Atalanta-Torino	-
+Cagliari-Fiorentina	-
+Empoli-Roma	-
+Frosinone-Udinese	-
+Genoa-Bologna	-
+Juventus-Monza	-
+Lazio-Sassuolo	-
+Milan-Salernitana	-
+Napoli-Lecce	-
+Verona-Inter	-
