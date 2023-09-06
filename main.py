@@ -1,33 +1,34 @@
-from typing import Final
+from datetime import datetime, timedelta, time
+import os
+import pickle
+from typing import Final, List
+
+from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
+    ContextTypes,
     MessageHandler,
     filters,
-    ContextTypes,
 )
-from datetime import datetime, timedelta, time
-import pickle
-import subprocess
-import os
-from dotenv import load_dotenv
 
 from utils import get_expiry_message
+from write_default_dates import write_default_dates
 
 # Env
 # Load environment variables from .env file
 load_dotenv()
 
 # Access constants from environment variables
-TOKEN: Final = os.getenv("TOKEN")
-BOT_USERNAME: Final = os.getenv("BOT_USERNAME")
+TOKEN: Final[str] = os.getenv("TOKEN")
+BOT_USERNAME: Final[str] = os.getenv("BOT_USERNAME")
 
-SAVED_DATES_FILEPATH: Final = os.getenv("SAVED_DATES_FILEPATH")
-CHAT_IDS_FILEPATH: Final = os.getenv("CHAT_IDS_FILEPATH")
+SAVED_DATES_FILEPATH: Final[str] = os.getenv("SAVED_DATES_FILEPATH")
+CHAT_IDS_FILEPATH: Final[str] = os.getenv("CHAT_IDS_FILEPATH")
 
 # Constants
-NOTIFICATIONS_INTERVAL: Final = [86400, 3600, 600]
+NOTIFICATIONS_INTERVAL: Final[List[int]] = [86400, 3600, 600]
 
 # Load active chat IDs from a file or initialize an empty list
 try:
@@ -39,20 +40,13 @@ except FileNotFoundError:
     active_chat_ids = []
 
 # Load saved dates from a file or initialize an empty list
-if os.path.exists(SAVED_DATES_FILEPATH):
-    try:
-        with open(SAVED_DATES_FILEPATH, "rb") as file:
-            print(f"[DATE][FILE_OPEN] File {file.name} opened!")
-            saved_dates = pickle.load(file)
-    except FileNotFoundError:
-        print("[DATE][FILE_NOT_FOUND] saved_dates file not found")
-        saved_dates = []
-else:
-    print(
-        "[DATE][FILE_NOT_FOUND] saved_dates file not found, running write_default_dates.py..."
-    )
-    subprocess.run(["python", "write_default_dates.py"])
-    # Now that the script has run, load the saved_dates file
+try:
+    with open(SAVED_DATES_FILEPATH, "rb") as file:
+        print(f"[DATE][FILE_OPEN] File {file.name} opened!")
+        saved_dates = pickle.load(file)
+except FileNotFoundError:
+    print("[DATE][FILE_NOT_FOUND] saved_dates file not found, running write_default_dates.py...")
+    write_default_dates()
     try:
         with open(SAVED_DATES_FILEPATH, "rb") as file:
             print(f"[DATE][FILE_OPEN] File {file.name} opened!")
