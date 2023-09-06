@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, time
 import os
 import pickle
-from typing import Final, List
+from typing import Final
 
 from dotenv import load_dotenv
 from telegram import Update
@@ -13,6 +13,7 @@ from telegram.ext import (
     filters,
 )
 
+from config import NOTIFICATIONS_INTERVAL
 from utils import get_expiry_message
 from write_default_dates import write_default_dates
 
@@ -26,9 +27,6 @@ BOT_USERNAME: Final[str] = os.getenv("BOT_USERNAME")
 
 SAVED_DATES_FILEPATH: Final[str] = os.getenv("SAVED_DATES_FILEPATH")
 CHAT_IDS_FILEPATH: Final[str] = os.getenv("CHAT_IDS_FILEPATH")
-
-# Constants
-NOTIFICATIONS_INTERVAL: Final[List[int]] = [86400, 3600, 600]
 
 # Load active chat IDs from a file or initialize an empty list
 try:
@@ -45,7 +43,9 @@ try:
         print(f"[DATE][FILE_OPEN] File {file.name} opened!")
         saved_dates = pickle.load(file)
 except FileNotFoundError:
-    print("[DATE][FILE_NOT_FOUND] saved_dates file not found, running write_default_dates.py...")
+    print(
+        "[DATE][FILE_NOT_FOUND] saved_dates file not found, running write_default_dates.py..."
+    )
     write_default_dates()
     try:
         with open(SAVED_DATES_FILEPATH, "rb") as file:
@@ -94,31 +94,41 @@ Se hai bisogno di ulteriori informazioni o aiuto, scrivi a @pelliccm\.
 
 
 async def save_date_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Get the date string from the user's message
-    date_str = context.args[0]  # Assumes the date is the first argument
     chat_id = update.message.chat_id
 
-    try:
-        # Parse the date string to a datetime object
-        date_obj = datetime.strptime(date_str, "%d/%m/%Y,%H:%M")
-
-        # Append the new date to the existing list
-        saved_dates.append((chat_id, date_obj))
-
-        # Save the updated list to the file
-        with open(SAVED_DATES_FILEPATH, "wb") as file:
-            pickle.dump(saved_dates, file)
-            print(f"[DATE][FILE_UPDATE] {saved_dates[-1]} saved in file {file.name}")
-
-        # Respond with a confirmation message
+    # Assumes the date is the first argument
+    if not context.args:
         await update.message.reply_text(
-            "Data salvata: {}".format(date_obj.strftime("%d-%m-%Y, %H:%M"))
+            "Per favore, usa il comando inserendo una data: `/aggiungi_data dd/MM/yyyy,HH:MM`\.",
+            parse_mode="MarkdownV2",
         )
-    except ValueError:
-        # Handle invalid date format
-        await update.message.reply_text(
-            "Formato data non valido. Per favore, usa dd/MM/yyyy,HH:MM."
-        )
+    else:
+        # Get the date string from the user's message
+        date_str = context.args[0]
+
+        try:
+            # Parse the date string to a datetime object
+            date_obj = datetime.strptime(date_str, "%d/%m/%Y,%H:%M")
+
+            # Append the new date to the existing list
+            saved_dates.append((chat_id, date_obj))
+
+            # Save the updated list to the file
+            with open(SAVED_DATES_FILEPATH, "wb") as file:
+                pickle.dump(saved_dates, file)
+                print(
+                    f"[DATE][FILE_UPDATE] {saved_dates[-1]} saved in file {file.name}"
+                )
+
+            # Respond with a confirmation message
+            await update.message.reply_text(
+                "Data salvata: {}".format(date_obj.strftime("%d-%m-%Y, %H:%M"))
+            )
+        except ValueError:
+            # Handle invalid date format
+            await update.message.reply_text(
+                "Formato data non valido. Per favore, usa dd/MM/yyyy,HH:MM."
+            )
 
 
 async def nearest_date_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
