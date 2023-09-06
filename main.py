@@ -8,6 +8,7 @@ from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
+    ConversationHandler,
     ContextTypes,
     MessageHandler,
     filters,
@@ -83,8 +84,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Ecco la lista dei comandi:
 \- /start: Avvia il bot\.
 \- /help: Questo messaggio\.
-\- /aggiungi\_data: Manda questo comando, seguito da una data formattata in questo modo `dd/MM/yyyy,HH:mm` per aggiungere una data al calendario da notificare\. Capirò in automatico la chat da cui il comando proviene e ti avviserò lì\.
-\- /prossima\_scadenza: Invierò un messaggio che indica quando scade la prossima formazione da inserire\.\n
+\- /aggiungi\_data: Inizio una conversazione per aggiungere una data al calendario da notificare\. Capirò in automatico la chat da cui il comando proviene e ti avviserò lì\.
+Puoi anche inviare il comando seguito da una data formattata in questo modo `dd/MM/yyyy,HH:mm`\.
+\- /prossima\_scadenza: Invierò un messaggio che indica quando scade la prossima formazione da inserire\.
+\- /annulla: Permette di uscire da una conversazione con il bot\.\n
 Se hai bisogno di ulteriori informazioni o aiuto, scrivi a @pelliccm\.
     """
     await update.message.reply_text(
@@ -93,25 +96,107 @@ Se hai bisogno di ulteriori informazioni o aiuto, scrivi a @pelliccm\.
     )
 
 
-async def save_date_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.message.chat_id
+CONV_DATE, CONV_TIME = range(2)
 
-    # Assumes the date is the first argument
+
+# Helper function to start the conversation
+async def start_add_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
+        print(
+            "[DATE][CONVERSATION] Missing argument for save_date_command. Starting conversation..."
+        )
         await update.message.reply_text(
-            "Per favore, usa il comando inserendo una data: `/aggiungi_data dd/MM/yyyy,HH:MM`\.",
+            "Inserisci la data nel formato `dd/MM/yyyy`:",
             parse_mode="MarkdownV2",
         )
+        return CONV_DATE
     else:
-        # Get the date string from the user's message
-        date_str = context.args[0]
+        # If an argument is provided, proceed with the existing behavior
+        await save_date(update, context.args[0])
+        return ConversationHandler.END
 
-        try:
-            # Parse the date string to a datetime object
-            date_obj = datetime.strptime(date_str, "%d/%m/%Y,%H:%M")
 
+# Function to handle date input
+async def date_convo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_input = update.message.text
+
+    try:
+        # Attempt to parse the date string
+        date_obj = datetime.strptime(user_input, "%d/%m/%Y")
+
+        # Check if the parsed date is in the future
+        if date_obj.date() < datetime.now().date():
+            await update.message.reply_text(
+                "La data inserita è nel passato\. Inserisci una data futura nel formato `dd/MM/yyyy`:",
+                parse_mode="MarkdownV2",
+            )
+            return CONV_DATE
+
+        # Store the valid date in user_data
+        context.user_data["date"] = date_obj.strftime("%d/%m/%Y")
+        print(f'[DATE][CONVERSATION] Date input: {context.user_data["date"]}')
+
+        await update.message.reply_text(
+            "Ora inserisci l'orario nel formato `HH:mm`:",
+            parse_mode="MarkdownV2",
+        )
+        return CONV_TIME
+
+    except ValueError:
+        # Handle invalid date format
+        await update.message.reply_text(
+            "Formato data non valido\. Per favore, usa `dd/MM/yyyy`\.\n"
+            "Riprova o invia /annulla per uscire\.",
+            parse_mode="MarkdownV2",
+        )
+        return CONV_DATE
+
+
+# Function to handle time input and save the complete date
+async def time_convo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_input = update.message.text
+    print(f"[DATE][CONVERSATION] Time input: {user_input}")
+
+    try:
+        date_str = context.user_data.get("date", "")
+        complete_datetime_str = f"{date_str},{user_input}"
+        print(f"[DATE][CONVERSATION] Complete datetime string: {complete_datetime_str}")
+
+        return (
+            ConversationHandler.END
+            if await save_date(update, complete_datetime_str)
+            else CONV_DATE
+        )
+    except ValueError:
+        # Handle invalid date format
+        await update.message.reply_text(
+            "Formato ora non valido\. Per favore, usa `HH:mm`\.\n"
+            "Riprova o invia /annulla per uscire\.",
+            parse_mode="MarkdownV2",
+        )
+        return CONV_TIME
+
+
+async def save_date(update, date_str: str):
+    chat_id = update.message.chat_id
+
+    try:
+        # Parse the date string to a datetime object
+        date_obj = datetime.strptime(date_str, "%d/%m/%Y,%H:%M")
+        saved_date_obj = (date_obj - timedelta(minutes=5))
+
+        if date_obj < datetime.now():
+            await update.message.reply_text(
+                "La data inserita è nel passato. Inserisci una data futura."
+            )
+        # Check if the date is already saved for the chat_id
+        elif is_date_already_saved(chat_id, saved_date_obj):
+            await update.message.reply_text(
+                "Questa data è già stata salvata per questa chat. Riprova."
+            )
+        else:
             # Append the new date to the existing list
-            saved_dates.append((chat_id, date_obj))
+            saved_dates.append((chat_id, saved_date_obj))
 
             # Save the updated list to the file
             with open(SAVED_DATES_FILEPATH, "wb") as file:
@@ -122,13 +207,31 @@ async def save_date_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             # Respond with a confirmation message
             await update.message.reply_text(
-                "Data salvata: {}".format(date_obj.strftime("%d-%m-%Y, %H:%M"))
+                "Data salvata: {}".format(date_obj.strftime("%d/%m/%Y, %H:%M"))
             )
-        except ValueError:
-            # Handle invalid date format
-            await update.message.reply_text(
-                "Formato data non valido. Per favore, usa dd/MM/yyyy,HH:MM."
-            )
+            return True
+    except ValueError:
+        # Handle invalid date format
+        await update.message.reply_text(
+            "Qualcosa è andato storto con la data inserita\.\n"
+            "Riprova o invia /help per maggiori informazioni\.",
+            parse_mode="MarkdownV2",
+        )
+
+    return False
+
+
+def is_date_already_saved(chat_id, date_obj):
+    return any(chat_id == entry[0] and date_obj == entry[1] for entry in saved_dates)
+
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Cancels and ends the conversation."""
+    print("User canceled the conversation.")
+    await update.message.reply_text("Inserimento data annullato. Ci vediamo!")
+
+    context.user_data.clear()
+    return ConversationHandler.END
 
 
 async def nearest_date_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -295,8 +398,23 @@ if __name__ == "__main__":
     # Commands
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("aggiungi_data", save_date_command))
     app.add_handler(CommandHandler("prossima_scadenza", nearest_date_command))
+
+    # Conversations
+    app.add_handler(
+        ConversationHandler(
+            entry_points=[CommandHandler("aggiungi_data", start_add_date)],
+            states={
+                CONV_DATE: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, date_convo)
+                ],
+                CONV_TIME: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, time_convo)
+                ],
+            },
+            fallbacks=[CommandHandler("annulla", cancel)],
+        )
+    )
 
     # Messages
     app.add_handler(MessageHandler(filters.TEXT, handle_message))
