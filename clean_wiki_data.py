@@ -1,89 +1,68 @@
-import re
-from typing import Final
+import csv
+import os
 from datetime import datetime, timedelta
+from typing import Final, List
 
+import requests
+from dotenv import load_dotenv
 
-def get_cleaned_dates():
-    # Specify the file path
-    file_path: Final = "seriea_calendar.txt"
+# Load .env
+load_dotenv()
 
-    # Read the data from the file with explicit encoding
-    with open(file_path, "r", encoding="utf-8") as file:
-        data = file.read()
+# Constants
+CSV_PATH: Final = os.getenv("SERIE_A_CALENDAR_PATH")
+CSV_URL: Final = os.getenv("SERIE_A_CALENDAR_URL")
 
-    # Initialize a list to store the results as datetime objects
-    results = []
+def download_csv(url, dest_path) -> None:
+    response = requests.get(url)
+    with open(dest_path, 'wb') as file:
+        file.write(response.content)
 
-    # Split the data into giornate using a regular expression
-    giornate = re.split(r"(\d+ª giornata)", data)[1:]
+def get_cleaned_dates_csv() -> List[datetime]:
+    
+    # Download the CSV file
+    download_csv(CSV_URL, CSV_PATH)
+    
+    # Read the data from the CSV file
+    with open(CSV_PATH, newline='', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+        
+        # Initialize a dictionary to store the earliest date for each round
+        dates = {}
 
-    # Map month names to integers using a dictionary
-    months_mapping = {
-        "gen.": 1,
-        "feb.": 2,
-        "mar.": 3,
-        "apr.": 4,
-        "mag.": 5,
-        "giu.": 6,
-        "lug.": 7,
-        "ago.": 8,
-        "set.": 9,
-        "ott.": 10,
-        "nov.": 11,
-        "dic.": 12,
-    }
+        # Map month names to integers using a dictionary
+        months_mapping = {
+            "gen.": 1, "feb.": 2, "mar.": 3, "apr.": 4, "mag.": 5, "giu.": 6,
+            "lug.": 7, "ago.": 8, "set.": 9, "ott.": 10, "nov.": 11, "dic.": 12,
+        }
 
-    # Iterate through each giornata (skip every second element since it's the giornata header)
-    for i in range(0, len(giornate), 2):
-        giornata_header = giornate[i]
-        giornata_content = giornate[i + 1]
+        # Iterate through each row in the CSV file
+        for row in reader:
+            # Extract date and time from the CSV row
+            date_str = row["Date"]
+            time_str = date_str.split()[-1]  # Extract time from the end of the date string
 
-        # Extract the giornata number from the header using regex search
-        giornata_number = re.search(r"(\d+)ª giornata", giornata_header)
-        if giornata_number:
-            current_giornata = giornata_number.group(1)
-
-        # Extract the date and time from the giornata_content using regex findall
-        date_matches = re.findall(r"(\d+ \w+\.)", giornata_content)
-        if date_matches:
-            # Split the date and month name and format them properly
-            dates = [date_match.split() for date_match in date_matches]
-            formatted_dates = [f"{date[0]} {months_mapping[date[1]]}" for date in dates]
-            
-            # Find the earliest date in the formatted dates list
-            earliest_date_str = min(formatted_dates)
-
-            # Get the year from the matched month
-            matched_month = dates[formatted_dates.index(earliest_date_str)][1]
-            year = 2024 if months_mapping[matched_month] <= 8 else 2023
-
-            # Extract the time from giornata_content using regex search, or assume 18:00 if not found
-            time_match = re.search(r"(\d+:\d+)", giornata_content)
-            time = time_match.group(1) if time_match else "18:00"
-            
-            # Subtract 2 days from the date if time is not found
-            if not time_match:
-                earliest_date = datetime.strptime(earliest_date_str, "%d %m")
-                earliest_date -= timedelta(days=2)
-                earliest_date_str = earliest_date.strftime("%d %m")
-
-            # Combine the date, year, and time into a single string
-            earliest_datetime_str = f"{earliest_date_str} {year} {time}"
-
-            # Convert the earliest_datetime_str to a datetime object
-            earliest_datetime = datetime.strptime(earliest_datetime_str, "%d %m %Y %H:%M")
+            # Convert date string to datetime object
+            date_obj = datetime.strptime(date_str, "%d/%m/%Y %H:%M")
 
             # Subtract 5 minutes from the datetime
-            earliest_datetime -= timedelta(minutes=5)
+            date_obj -= timedelta(minutes=5)
 
-            # Add the datetime object to the results list
-            results.append(earliest_datetime)
+           # Extract round number from the CSV row
+            round_number = int(row["Round Number"])
+
+            # Update the earliest date for the round if needed
+            if round_number not in dates or date_obj < dates[round_number]:
+                dates[round_number] = date_obj
+
+        # Convert the dictionary values to a sorted list
+        results = sorted(dates.values())
 
     return results
 
 
 if __name__ == "__main__":
     # Print the results as datetime objects
-    cleaned_dates = get_cleaned_dates()
+    cleaned_dates = get_cleaned_dates_csv()
     for result in cleaned_dates:
         print(result)
