@@ -18,7 +18,7 @@ def download_csv(url, dest_path) -> None:
     with open(dest_path, 'wb') as file:
         file.write(response.content)
 
-def get_cleaned_dates_csv() -> List[datetime]:
+def get_cleaned_dates() -> List[datetime]:
     
     # Download the CSV file
     download_csv(CSV_URL, CSV_PATH)
@@ -63,6 +63,6 @@ def get_cleaned_dates_csv() -> List[datetime]:
 
 if __name__ == "__main__":
     # Print the results as datetime objects
-    cleaned_dates = get_cleaned_dates_csv()
+    cleaned_dates = get_cleaned_dates()
     for result in cleaned_dates:
         print(result)
