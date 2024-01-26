@@ -32,7 +32,7 @@ To get started with Fanta Formazioni Reminder, follow these steps:
 
 Before running the bot, you'll need the following:
 
-- Python 3.x installed on your system.
+- Python 3.x installed on your system. The bot is developed in Python 3.11.4.
 - A Telegram account and a bot token obtained from the [BotFather](https://core.telegram.org/bots#botfather).
 
 ### Installation
@@ -78,8 +78,8 @@ The bot provides various commands to interact with it. You can start a chat with
 
 - `/start`: Start a chat with the bot and get an introduction.
 - `/aggiungi_data`: Save a custom date to be reminded in the chat you used this command.
-- `/prossima_scadenza`: Display the next deadline for setting up your team's lineup. 
-- `/annulla`: Cancel an ongoing conversation with the bot. 
+- `/prossima_scadenza`: Display the next deadline for setting up your team's lineup.
+- `/annulla`: Cancel an ongoing conversation with the bot.
 - `/help`: Display a help message with available commands.
 
 Feel free to explore and customize the bot's functionality as per your requirements.
