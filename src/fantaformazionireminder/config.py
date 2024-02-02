@@ -3,10 +3,12 @@ from typing import Final
 
 from dotenv import load_dotenv
 
+# Load .env
 load_dotenv()
 
 
-BASE_RESOURCES_PATH: Final = os.path.join(os.getcwd(), "fantaformazionireminder\\resources")
+# Values
+BASE_RESOURCES_PATH: Final = os.path.join(os.getcwd(), "src\\fantaformazionireminder\\resources")
 
 TOKEN: Final[str] = os.getenv("TOKEN")
 BOT_USERNAME: Final[str] = os.getenv("BOT_USERNAME")

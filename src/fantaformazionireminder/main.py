@@ -13,7 +13,8 @@ from telegram.ext import (
     filters,
 )
 from utils.expiry_message import get_expiry_message
-from write_default_dates import write_default_dates
+from default_dates import write_default_dates
+
 
 # Load active chat IDs from a file or initialize an empty list
 try:
@@ -23,6 +24,7 @@ try:
 except FileNotFoundError:
     print("[CHAT_ID][FILE_NOT_FOUND] File not found")
     active_chat_ids = []
+
 
 # Load saved dates from a file or initialize an empty list
 try:
@@ -169,7 +171,7 @@ async def save_date(update, date_str: str):
     try:
         # Parse the date string to a datetime object
         date_obj = datetime.strptime(date_str, "%d/%m/%Y,%H:%M")
-        saved_date_obj = (date_obj - timedelta(minutes=5))
+        saved_date_obj = date_obj - timedelta(minutes=5)
 
         if date_obj < datetime.now():
             await update.message.reply_text(

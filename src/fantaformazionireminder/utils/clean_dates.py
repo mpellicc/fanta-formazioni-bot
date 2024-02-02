@@ -4,7 +4,7 @@ from typing import List
 
 import requests
 
-from fantaformazionireminder.src import config
+from fantaformazionireminder import config
 
 
 def __download_csv(url, dest_path) -> None:

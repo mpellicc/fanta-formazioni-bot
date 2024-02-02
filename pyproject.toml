@@ -1,0 +1,18 @@
+[project]
+name = "fantaformazionireminder"
+version = "0.1.0"
+dependencies = [
+    "python-dotenv",
+    "python-telegram-bot[job_queue]>=20.5",
+    "requests",
+]
+requires-python = ">=3.11.4"
+authors = [{ name = "Matteo Pelliccione", email = "mat.pelliccione@gmail.com" }]
+description = "Telegram Bot to remind you of Fantacalcio's line-up"
+readme = "README.md"
+license = { file = "LICENSE" }
+classifiers = ["Programming Language :: Python :: 3.11.4"]
+
+[build-system]
+requires = ["setuptools >= 69.0"]
+build-backend = "setuptools.build_meta"
