@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+
 # TODO better handling of time_difference to let the message be more variable
 def get_expiry_message(time_difference: timedelta, saved_date: any):
     processed_time = time_difference.total_seconds()

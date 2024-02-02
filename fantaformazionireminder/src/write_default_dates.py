@@ -1,25 +1,18 @@
-import os
 import pickle
-from dotenv import load_dotenv
-from typing import Final
 
-from clean_wiki_data import get_cleaned_dates
+import config
+from utils.clean_dates import get_cleaned_dates
 
-# Load .env
-load_dotenv()
-
-# Constants
-SAVED_DATES_FILEPATH: Final = os.getenv("SAVED_DATES_FILEPATH")
 
 def __load_saved_dates():
     try:
-        with open(SAVED_DATES_FILEPATH, "rb") as file:
+        with open(config.SAVED_DATES_FILEPATH, "rb") as file:
             return pickle.load(file)
     except FileNotFoundError:
         return []
 
 def __save_dates(saved_dates):
-    with open(SAVED_DATES_FILEPATH, "wb") as file:
+    with open(config.SAVED_DATES_FILEPATH, "wb") as file:
         pickle.dump(saved_dates, file)
 
 def write_default_dates():
