@@ -53,6 +53,7 @@ Before running the bot, you'll need the following:
 
    ```bash
    pip install -r requirements.txt
+   pip install -e .
    ```
 
 4. Create a `.env` file in the project directory.  
@@ -67,7 +68,7 @@ Before running the bot, you'll need the following:
 5. Start the bot:
 
    ```bash
-   python main.py
+   python src\fantaformazionireminder\main.py
    ```
 
 Now, your Fanta Formazioni Reminder bot should be up and running.

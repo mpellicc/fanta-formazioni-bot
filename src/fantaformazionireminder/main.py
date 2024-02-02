@@ -1,9 +1,8 @@
-import os
 import pickle
 from datetime import datetime, time, timedelta
-from typing import Final
 
-from dotenv import load_dotenv
+import config
+from constants.notifications_interval import NOTIFICATIONS_INTERVAL
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -13,34 +12,23 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+from utils.expiry_message import get_expiry_message
+from src.fantaformazionireminder.utils.default_dates import write_default_dates
 
-from config import NOTIFICATIONS_INTERVAL
-from utils import get_expiry_message
-from write_default_dates import write_default_dates
-
-# Env
-# Load environment variables from .env file
-load_dotenv()
-
-# Access constants from environment variables
-TOKEN: Final[str] = os.getenv("TOKEN")
-BOT_USERNAME: Final[str] = os.getenv("BOT_USERNAME")
-
-SAVED_DATES_FILEPATH: Final[str] = os.getenv("SAVED_DATES_FILEPATH")
-CHAT_IDS_FILEPATH: Final[str] = os.getenv("CHAT_IDS_FILEPATH")
 
 # Load active chat IDs from a file or initialize an empty list
 try:
-    with open(CHAT_IDS_FILEPATH, "rb") as file:
+    with open(config.CHAT_IDS_FILEPATH, "rb") as file:
         print(f"[CHAT_ID][FILE_OPEN] File {file.name} opened!")
         active_chat_ids = pickle.load(file)
 except FileNotFoundError:
     print("[CHAT_ID][FILE_NOT_FOUND] File not found")
     active_chat_ids = []
 
+
 # Load saved dates from a file or initialize an empty list
 try:
-    with open(SAVED_DATES_FILEPATH, "rb") as file:
+    with open(config.SAVED_DATES_FILEPATH, "rb") as file:
         print(f"[DATE][FILE_OPEN] File {file.name} opened!")
         saved_dates = pickle.load(file)
 except FileNotFoundError:
@@ -49,7 +37,7 @@ except FileNotFoundError:
     )
     write_default_dates()
     try:
-        with open(SAVED_DATES_FILEPATH, "rb") as file:
+        with open(config.SAVED_DATES_FILEPATH, "rb") as file:
             print(f"[DATE][FILE_OPEN] File {file.name} opened!")
             saved_dates = pickle.load(file)
     except FileNotFoundError:
@@ -63,7 +51,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if chat_id not in active_chat_ids:
         active_chat_ids.append(chat_id)
-        with open(CHAT_IDS_FILEPATH, "wb") as file:
+        with open(config.CHAT_IDS_FILEPATH, "wb") as file:
             pickle.dump(active_chat_ids, file)
             print(
                 f"[CHAT_ID][FILE_UPDATE] {active_chat_ids[-1]} saved in file {file.name}"
@@ -183,7 +171,7 @@ async def save_date(update, date_str: str):
     try:
         # Parse the date string to a datetime object
         date_obj = datetime.strptime(date_str, "%d/%m/%Y,%H:%M")
-        saved_date_obj = (date_obj - timedelta(minutes=5))
+        saved_date_obj = date_obj - timedelta(minutes=5)
 
         if date_obj < datetime.now():
             await update.message.reply_text(
@@ -199,7 +187,7 @@ async def save_date(update, date_str: str):
             saved_dates.append((chat_id, saved_date_obj))
 
             # Save the updated list to the file
-            with open(SAVED_DATES_FILEPATH, "wb") as file:
+            with open(config.SAVED_DATES_FILEPATH, "wb") as file:
                 pickle.dump(saved_dates, file)
                 print(
                     f"[DATE][FILE_UPDATE] {saved_dates[-1]} saved in file {file.name}"
@@ -264,8 +252,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     if message_type == "group" or message_type == "supergroup":
-        if BOT_USERNAME in text:
-            new_text: str = text.replace(BOT_USERNAME, "").strip()
+        if config.BOT_USERNAME in text:
+            new_text: str = text.replace(config.BOT_USERNAME, "").strip()
             response: str = handle_response(new_text)
         else:
             return
@@ -380,7 +368,7 @@ def remove_expired_dates():
     ]
 
     # Save the updated list to the file
-    with open(SAVED_DATES_FILEPATH, "wb") as file:
+    with open(config.SAVED_DATES_FILEPATH, "wb") as file:
         pickle.dump(updated_saved_dates, file)
 
     saved_dates = updated_saved_dates
@@ -389,7 +377,7 @@ def remove_expired_dates():
 # Application
 if __name__ == "__main__":
     print("[SELF] Starting bot...")
-    app = Application.builder().token(TOKEN).build()
+    app = Application.builder().token(config.TOKEN).build()
     job_queue = app.job_queue
 
     # Cleanup

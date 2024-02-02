@@ -1,20 +1,13 @@
 import csv
-import os
 from datetime import datetime, timedelta
-from typing import Final, List
+from typing import List
 
 import requests
-from dotenv import load_dotenv
 
-# Load .env
-load_dotenv()
-
-# Constants
-CSV_PATH: Final = os.getenv("SERIE_A_CALENDAR_PATH")
-CSV_URL: Final = os.getenv("SERIE_A_CALENDAR_URL")
+from fantaformazionireminder import config
 
 
-def download_csv(url, dest_path) -> None:
+def __download_csv(url, dest_path) -> None:
     response = requests.get(url)
     with open(dest_path, "wb") as file:
         file.write(response.content)
@@ -22,10 +15,10 @@ def download_csv(url, dest_path) -> None:
 
 def get_cleaned_dates() -> List[datetime]:
     # Download the CSV file
-    download_csv(CSV_URL, CSV_PATH)
+    __download_csv(config.SERIE_A_CALENDAR_URL, config.SERIE_A_CALENDAR_PATH)
 
     # Read the data from the CSV file
-    with open(CSV_PATH, newline="", encoding="utf-8") as csvfile:
+    with open(config.SERIE_A_CALENDAR_PATH, newline="", encoding="utf-8") as csvfile:
         reader = csv.DictReader(csvfile)
 
         # Initialize a dictionary to store the earliest date for each round
