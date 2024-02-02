@@ -11,9 +11,11 @@ def __load_saved_dates():
     except FileNotFoundError:
         return []
 
+
 def __save_dates(saved_dates):
     with open(config.SAVED_DATES_FILEPATH, "wb") as file:
         pickle.dump(saved_dates, file)
+
 
 def write_default_dates():
     # Load the existing saved_dates or initialize an empty list
@@ -29,6 +31,7 @@ def write_default_dates():
     __save_dates(saved_dates)
 
     print("[DEFAULT_DATE][FILE_UPDATE] Default dates added to saved_dates.")
+
 
 if __name__ == "__main__":
     write_default_dates()

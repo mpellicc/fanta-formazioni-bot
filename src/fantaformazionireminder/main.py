@@ -13,7 +13,7 @@ from telegram.ext import (
     filters,
 )
 from utils.expiry_message import get_expiry_message
-from default_dates import write_default_dates
+from src.fantaformazionireminder.utils.default_dates import write_default_dates
 
 
 # Load active chat IDs from a file or initialize an empty list
