@@ -9,7 +9,7 @@ load_dotenv()
 
 # Values
 BASE_RESOURCES_PATH: Final = os.path.join(
-    os.getcwd(), "src\\fantaformazionireminder\\resources"
+    os.getcwd(), "fantaformazionireminder\\resources"
 )
 
 TOKEN: Final[str] = os.getenv("TOKEN")

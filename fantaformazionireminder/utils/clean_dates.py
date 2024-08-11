@@ -4,7 +4,7 @@ from typing import List
 
 import requests
 
-from fantaformazionireminder import config
+import config
 
 
 def __download_csv(url, dest_path) -> None:
@@ -15,7 +15,7 @@ def __download_csv(url, dest_path) -> None:
 
 def get_cleaned_dates() -> List[datetime]:
     # Download the CSV file
-    __download_csv(config.SERIE_A_CALENDAR_URL, config.SERIE_A_CALENDAR_PATH)
+    __download_csv(config.SERIE_A_CALENDAR_URL.format(current_year = datetime.now().year), config.SERIE_A_CALENDAR_PATH)
 
     # Read the data from the CSV file
     with open(config.SERIE_A_CALENDAR_PATH, newline="", encoding="utf-8") as csvfile:

@@ -13,7 +13,7 @@ from telegram.ext import (
     filters,
 )
 from utils.expiry_message import get_expiry_message
-from src.fantaformazionireminder.utils.default_dates import write_default_dates
+from utils.default_dates import write_default_dates
 
 
 # Load active chat IDs from a file or initialize an empty list
@@ -277,7 +277,7 @@ sent_notifications = {}
 # Update the check_and_send_notifications function
 async def check_and_send_notifications(context: ContextTypes.DEFAULT_TYPE):
     current_time = datetime.now()
-    # print(f"Checking dates @ {current_time}")
+    print(f"[DEBUG] Checking dates @ {current_time}")
 
     for chat_id, saved_date in saved_dates:
         # Calculate the time difference
@@ -294,6 +294,8 @@ async def check_and_send_notifications(context: ContextTypes.DEFAULT_TYPE):
                 < timedelta(seconds=(seconds_from_expiry + 60))
             ):
                 if seconds_from_expiry not in sent_notifications[saved_date]:
+                    print(f"[DEBUG] Sending notification @ chat {chat_id}")
+                    
                     await notify_expiry(
                         context=context,
                         message=get_expiry_message(time_difference, saved_date),
