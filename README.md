@@ -1,4 +1,4 @@
-# Fanta Formazioni Reminder
+# Fanta Formazioni Reminder Bot
 
 Fanta Formazioni Reminder is a Telegram Bot written in Python that helps users manage and stay updated with their fantasy football (FantaCalcio) team lineups. This bot provides reminders and notifications for important events related to fantasy football, such as upcoming matchdays and deadlines for setting up your team's lineup.
 
