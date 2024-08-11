@@ -4,13 +4,16 @@ Fanta Formazioni Reminder is a Telegram Bot written in Python that helps users m
 
 ## Table of Contents
 
-- [Features](#features)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
+- [Fanta Formazioni Reminder](#fanta-formazioni-reminder)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+    - [Upcoming Features](#upcoming-features)
+  - [Getting Started](#getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Installation](#installation)
+  - [Usage](#usage)
+  - [Contributing](#contributing)
+  - [License](#license)
 <!-- - [Configuration](#configuration) -->
 
 ## Features
@@ -32,43 +35,50 @@ To get started with Fanta Formazioni Reminder, follow these steps:
 
 Before running the bot, you'll need the following:
 
-- Python 3.x installed on your system. The bot is developed in Python 3.11.4.
+- Python 3.x installed on your system. The bot is developed in Python 3.12.4.
 - A Telegram account and a bot token obtained from the [BotFather](https://core.telegram.org/bots#botfather).
 
 ### Installation
 
-1. Clone the repository:
+1. Install Poetry by following [the official guide](https://python-poetry.org/docs/#installation).
+
+2. Clone the repository:
 
    ```bash
-   git clone https://github.com/mpellicc/fanta-formazioni-reminder.git
+   git clone https://github.com/mpellicc/fanta-formazioni-bot.git
    ```
 
-2. Navigate to the project directory:
+3. Navigate to the project directory:
 
    ```bash
-   cd fanta-formazioni-reminder
+   cd fanta-formazioni-bot
    ```
 
-3. Install the required Python packages:
+4. Install the required Python packages:
 
    ```bash
-   pip install -r requirements.txt
-   pip install -e .
+   poetry install
    ```
 
-4. Create a `.env` file in the project directory.  
+5. Activate the virtual environment:
+
+   ```bash
+   poetry shell
+   ```
+
+6. Create a `.env` file in the project directory.  
    You can copy the configuration and then change the values from the env.example file with:
 
    ```bash
-   cp env.enxample .env
+   cp env.example .env
    ```
 
    Or simply write it on your own.
 
-5. Start the bot:
+7. Start the bot:
 
    ```bash
-   python src\fantaformazionireminder\main.py
+   python fantaformazionibot\main.py
    ```
 
 Now, your Fanta Formazioni Reminder bot should be up and running.
