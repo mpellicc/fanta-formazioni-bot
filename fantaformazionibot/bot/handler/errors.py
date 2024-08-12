@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from fantaformazionibot.utils.logging import setup_logging
+from utils.logging import setup_logging
 
 logger = setup_logging()
 

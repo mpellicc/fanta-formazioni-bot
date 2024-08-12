@@ -1,8 +1,13 @@
-def default_response_handler(text: str) -> str:
+from telegram import Update
+from telegram.ext import ContextTypes
+
+
+async def default_response_handler(update: Update, _: ContextTypes.DEFAULT_TYPE) -> str:
     """Utility method to test the bot activeness."""
-    processed: str = text.lower()
+    text: str = update.message.text
 
-    if "ciao" in processed:
-        return "Ciao!"
+    if "ciao" in text.lower():
+        await update.message.reply_text("Ciao!")
+        return
 
-    return "Non capisco..."
+    await update.message.reply_text("Non capisco...")

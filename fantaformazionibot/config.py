@@ -38,3 +38,16 @@ class Config:
             "SERIE_A_CALENDAR_URL",
             "https://fixturedownload.com/download/serie-a-{current_year}-WEuropeStandardTime.csv",
         ).format(current_year=datetime.now().year)
+
+    @property
+    def database_file(self) -> Path:
+        path = self.RESOURCES_DIR / os.getenv("DATABASE_PATH", "fantaformazionibot.db")
+        return path.resolve()
+    
+    
+    @property
+    def channel_chat_id(self) -> str:
+        channel_chat_id = os.getenv("CHANNEL_CHAT_ID")
+        if channel_chat_id is None:
+            raise ValueError("CHANNEL_CHAT_ID environment variable not set.")
+        return channel_chat_id

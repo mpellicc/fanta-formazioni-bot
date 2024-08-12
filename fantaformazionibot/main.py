@@ -15,14 +15,14 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
+from bot.handler.commands import help_command, start_command, next_match_command
+from bot.handler.errors import default_error_handler
+from bot.handler.handlers import default_response_handler
+from bot.jobs import schedule_jobs
 from config import Config
+from db.database import create_tables
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
-
-from fantaformazionibot.bot.handler.commands import help_command, start_command
-from fantaformazionibot.bot.handler.errors import default_error_handler
-from fantaformazionibot.bot.handler.handlers import default_response_handler
-from fantaformazionibot.bot.jobs import schedule_jobs
-from fantaformazionibot.utils.logging import setup_logging
+from utils.logging import setup_logging
 
 # Enable logging
 logger = setup_logging()
@@ -31,11 +31,15 @@ logger = setup_logging()
 def main():
     config: Config = Config()
 
+    # Initialize the database
+    create_tables(config.database_file)
+
     app = Application.builder().token(config.token).build()
 
     # Commands
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("prossima_scadenza", next_match_command))
 
     # Messages
     app.add_handler(MessageHandler(filters.TEXT, default_response_handler))
@@ -44,7 +48,7 @@ def main():
     app.add_error_handler(default_error_handler)
 
     # Jobs
-    schedule_jobs(app.job_queue)
+    schedule_jobs(config, app.job_queue)
 
     # Polling
     app.run_polling(poll_interval=1)
