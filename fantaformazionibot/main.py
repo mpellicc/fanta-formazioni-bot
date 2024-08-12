@@ -15,34 +15,33 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-import logging
-
-import config
-from fantaformazionibot.bot.handler.default_handlers import handle_response
-from bot.handler.default_commands import help_command, start_command
-from bot.jobs import schedule_jobs
+from config import Config
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
+from fantaformazionibot.bot.handler.commands import help_command, start_command
+from fantaformazionibot.bot.handler.errors import default_error_handler
+from fantaformazionibot.bot.handler.handlers import default_response_handler
+from fantaformazionibot.bot.jobs import schedule_jobs
+from fantaformazionibot.utils.logging import setup_logging
+
 # Enable logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
-
-# set higher logging level for httpx to avoid all GET and POST requests being logged
-logging.getLogger("httpx").setLevel(logging.WARNING)
-
-logger = logging.getLogger(__name__)
+logger = setup_logging()
 
 
 def main():
-    app = Application.builder().token(config.TOKEN).build()
+    config: Config = Config()
+
+    app = Application.builder().token(config.token).build()
 
     # Commands
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
 
     # Messages
-    app.add_handler(MessageHandler(filters.TEXT, handle_response))
+    app.add_handler(MessageHandler(filters.TEXT, default_response_handler))
+
+    # Errors
+    app.add_error_handler(default_error_handler)
 
     # Jobs
     schedule_jobs(app.job_queue)

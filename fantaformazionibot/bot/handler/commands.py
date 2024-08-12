@@ -1,19 +1,11 @@
-import logging
-
 from constant.messages import Messages
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
-# Enable logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", 
-    level=logging.INFO
-)
-
 
 async def start_command(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
-    """Sends an introducotry message."""
+    """Sends an introductory message."""
     await update.message.reply_text(Messages.START, parse_mode=ParseMode.MARKDOWN_V2)
 
 
