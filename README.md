@@ -1,31 +1,34 @@
 # Fanta Formazioni Reminder
 
-Fanta Formazioni Reminder is a Telegram Bot written in Python that helps users manage and stay updated with their fantasy football (FantaCalcio) team lineups. This bot provides reminders and notifications for important events related to fantasy football, such as upcoming matchdays and deadlines for setting up your team's lineup.
+Fanta Formazioni Reminder is a Telegram Bot written in Python that helps users stay updated with their fantasy football (FantaCalcio) team lineups. This bot provides reminders and notifications for important events related to fantasy football, such as upcoming matchdays and deadlines for setting up your team's lineup.
 
 ## Table of Contents
 
 - [Fanta Formazioni Reminder](#fanta-formazioni-reminder)
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
-    - [Upcoming Features](#upcoming-features)
+    - [Notes](#notes)
   - [Getting Started](#getting-started)
     - [Prerequisites](#prerequisites)
     - [Installation](#installation)
   - [Usage](#usage)
   - [Contributing](#contributing)
   - [License](#license)
-<!-- - [Configuration](#configuration) -->
 
 ## Features
 
-- **Fantasy Football Reminders:** Get timely reminders for setting up your fantasy football lineup before the deadline.  
+- **FantaCalcio Reminders:** Get timely reminders for setting up your fantasy football lineup before the deadline.  
 At the time of writing, the bot provides reminders 24 hours, 1 hour and 10 minute before the lineups deadline, set to 5 minutes before the start of the match-day.
 - **User-Friendly Commands:** Interact with the bot using simple and intuitive Telegram commands.
 - **Open Source:** This project is open source, allowing you to customize and contribute to its development.
 
-### Upcoming Features
+### Notes
 
-- **Customizable Settings:** Configure the bot to suit your preferences and timezone.
+At the moment, the bot is developed in a way that lets it send the standard reminders in a channel ([@fantaformazionireminders](t.me/fantaformazionireminders)). This permits me to keep working on the development, while the users can have the notifications to set their FantaCalcio lineups.
+
+Also consider that Telegram has a flood limit of 30 messages per second. My initial plan was to let the bot work in private and group chats, but this limitation could force me to change the behavior and just let the bot run in the channel, limiting its current and upcoming features.
+
+The only command (other than `/start` and `/help`) that will probably be kept is `prossima_scadenza`, since it can be useful.
 
 ## Getting Started
 
@@ -83,21 +86,17 @@ Before running the bot, you'll need the following:
 
 Now, your Fanta Formazioni Reminder bot should be up and running.
 
+Make sure to replace `YOUR_BOT_TOKEN` with your actual Telegram bot token and update the README with any additional information specific to your project. You may also want to include a section for troubleshooting or frequently asked questions if applicable.
+
 ## Usage
 
 The bot provides various commands to interact with it. You can start a chat with the bot and use the following commands:
 
 - `/start`: Start a chat with the bot and get an introduction.
-- `/aggiungi_data`: Save a custom date to be reminded in the chat you used this command.
 - `/prossima_scadenza`: Display the next deadline for setting up your team's lineup.
-- `/annulla`: Cancel an ongoing conversation with the bot.
 - `/help`: Display a help message with available commands.
 
 Feel free to explore and customize the bot's functionality as per your requirements.
-
-<!-- ## Configuration
-
-You can customize the bot's behavior by modifying the configuration settings in the `config.py` file. Here, you can adjust things like default timezone, notification intervals, and more to suit your preferences. -->
 
 ## Contributing
 
@@ -105,10 +104,8 @@ Contributions to this project are welcome! If you have ideas for improvements, b
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU GPLv3 License - see the [COPYING](COPYING) file for details.
 
 ---
 
-**Disclaimer:** This project is not affiliated with or endorsed by Telegram or any fantasy football league or platform. It is a personal project created for educational and entertainment purposes.
-
-Make sure to replace `YOUR_BOT_TOKEN` with your actual Telegram bot token and update the README with any additional information specific to your project. You may also want to include a section for troubleshooting or frequently asked questions if applicable.
+**Disclaimer:** This project is not affiliated with or endorsed by Telegram or any FantaCalcio league or platform. It is a personal project created for educational and entertainment purposes.

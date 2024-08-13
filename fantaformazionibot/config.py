@@ -1,9 +1,10 @@
-import datetime
+from datetime import datetime
 import os
 from pathlib import Path
 from typing import Final
 
 from dotenv import load_dotenv
+from zoneinfo import ZoneInfo
 
 # Load .env
 load_dotenv()
@@ -28,6 +29,10 @@ class Config:
         return bot_username
 
     @property
+    def timezone(self) -> ZoneInfo:
+        return ZoneInfo("Europe/Rome")
+
+    @property
     def serie_a_calendar_path(self) -> Path:
         path = self.RESOURCES_DIR / os.getenv("SERIE_A_CALENDAR_PATH", "calendar.csv")
         return path.resolve()
@@ -43,8 +48,7 @@ class Config:
     def database_file(self) -> Path:
         path = self.RESOURCES_DIR / os.getenv("DATABASE_PATH", "fantaformazionibot.db")
         return path.resolve()
-    
-    
+
     @property
     def channel_chat_id(self) -> str:
         channel_chat_id = os.getenv("CHANNEL_CHAT_ID")

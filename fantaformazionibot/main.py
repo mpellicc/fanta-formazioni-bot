@@ -22,10 +22,11 @@ from bot.jobs import schedule_jobs
 from config import Config
 from db.database import create_tables
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
-from utils.logging import setup_logging
+from utils.logging import get_logger, setup_logging
 
 # Enable logging
-logger = setup_logging()
+setup_logging()
+logger = get_logger()
 
 
 def main():

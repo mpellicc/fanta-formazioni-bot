@@ -1,3 +1,3 @@
-from typing import Final
+from typing import Final, Tuple
 
-NOTIFICATIONS_TIMES: Final[tuple[int, ...]] = (86400, 3600, 600)
+NOTIFICATIONS_TIMES: Final[Tuple[int, ...]] = (86400, 3600, 600)
