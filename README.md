@@ -1,13 +1,14 @@
-# Fanta Formazioni Reminder
 
-Fanta Formazioni Reminder is a Telegram Bot written in Python that helps users stay updated with their fantasy football (FantaCalcio) team lineups. This bot provides reminders and notifications for important events related to fantasy football, such as upcoming matchdays and deadlines for setting up your team's lineup.
+# FantaFormazioni Bot
+
+FantaFormazioni Bot is a Telegram bot written in Python designed to help users stay updated with their FantaCalcio team lineups. The bot provides reminder notifications about the deadlines for setting up your team's lineup.
 
 ## Table of Contents
 
-- [Fanta Formazioni Reminder](#fanta-formazioni-reminder)
+- [FantaFormazioni Bot](#fantaformazioni-bot)
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
-    - [Notes](#notes)
+    - [Important](#important)
   - [Getting Started](#getting-started)
     - [Prerequisites](#prerequisites)
     - [Installation](#installation)
@@ -17,94 +18,93 @@ Fanta Formazioni Reminder is a Telegram Bot written in Python that helps users s
 
 ## Features
 
-- **FantaCalcio Reminders:** Get timely reminders for setting up your fantasy football lineup before the deadline.  
-At the time of writing, the bot provides reminders 24 hours, 1 hour and 10 minute before the lineups deadline, set to 5 minutes before the start of the match-day.
+- **FantaCalcio Reminders:** Receive reminders to set up your fantasy football lineup before the deadline.  
+  - Reminders are sent 24 hours, 1 hour, and 5 minutes before the lineup deadline, which is set to 5 minutes before the start of the matchday.
 - **User-Friendly Commands:** Interact with the bot using simple and intuitive Telegram commands.
 - **Open Source:** This project is open source, allowing you to customize and contribute to its development.
 
-### Notes
+### Important
 
-At the moment, the bot is developed in a way that lets it send the standard reminders in a channel ([@fantaformazionireminders](t.me/fantaformazionireminders)). This permits me to keep working on the development, while the users can have the notifications to set their FantaCalcio lineups.
+Currently, the bot sends standard reminders in a dedicated channel [@fantaformazionireminders](t.me/fantaformazionireminders). This approach allows ongoing development while still providing users with notifications to set their FantaCalcio lineups.
 
-Also consider that Telegram has a flood limit of 30 messages per second. My initial plan was to let the bot work in private and group chats, but this limitation could force me to change the behavior and just let the bot run in the channel, limiting its current and upcoming features.
-
-The only command (other than `/start` and `/help`) that will probably be kept is `prossima_scadenza`, since it can be useful.
+**Note:** Telegram imposes a flood limit of 30 messages per second. Initially, the bot was intended to work in private and group chats, but this limitation might necessitate restricting the bot to channel-only operation, which could limit current and upcoming features.
 
 ## Getting Started
 
-To get started with Fanta Formazioni Reminder, follow these steps:
+To get started with FantaFormazioni Bot, follow these steps:
 
 ### Prerequisites
 
-Before running the bot, you'll need the following:
+Before running the bot, ensure you have the following:
 
-- Python 3.x installed on your system. The bot is developed in Python 3.12.4.
+- Python 3.9+ installed on your system (the bot is developed in Python 3.12.4).
 - A Telegram account and a bot token obtained from the [BotFather](https://core.telegram.org/bots#botfather).
 
 ### Installation
 
-1. Install Poetry by following [the official guide](https://python-poetry.org/docs/#installation).
+> **Note:** This guide uses [Poetry](https://python-poetry.org/), but you can use [pip](https://pip.pypa.io/en/stable/getting-started/) as well. A `requirements.txt` file is provided for pip users.
 
-2. Clone the repository:
+1. **Install Poetry** by following [the official guide](https://python-poetry.org/docs/#installation).
+
+2. **Clone the repository:**
 
    ```bash
    git clone https://github.com/mpellicc/fanta-formazioni-bot.git
    ```
 
-3. Navigate to the project directory:
+3. **Navigate to the project directory:**
 
    ```bash
    cd fanta-formazioni-bot
    ```
 
-4. Install the required Python packages:
+4. **Install the required Python packages:**
 
    ```bash
    poetry install
    ```
 
-5. Activate the virtual environment:
+5. **Activate the virtual environment:**
 
    ```bash
    poetry shell
    ```
 
-6. Create a `.env` file in the project directory.  
-   You can copy the configuration and then change the values from the env.example file with:
+6. **Set up the environment variables:**
+   - Create a `.env` file in the project directory.
+   - You can copy the template from `env.example`:
+
+     ```bash
+     cp env.example .env
+     ```
+
+   - Update the `.env` file with your specific configuration values.
+
+7. **Start the bot:**
 
    ```bash
-   cp env.example .env
+   python fantaformazionibot/main.py
    ```
 
-   Or simply write it on your own.
-
-7. Start the bot:
-
-   ```bash
-   python fantaformazionibot\main.py
-   ```
-
-Now, your Fanta Formazioni Reminder bot should be up and running.
-
-Make sure to replace `YOUR_BOT_TOKEN` with your actual Telegram bot token and update the README with any additional information specific to your project. You may also want to include a section for troubleshooting or frequently asked questions if applicable.
+Your FantaFormazioni Bot should now be up and running.
 
 ## Usage
 
-The bot provides various commands to interact with it. You can start a chat with the bot and use the following commands:
+The bot provides various commands for interacting with it. Start a chat with the bot and use the following commands:
 
-- `/start`: Start a chat with the bot and get an introduction.
+- `/start`: Start a chat with the bot and receive an introduction.
 - `/prossima_scadenza`: Display the next deadline for setting up your team's lineup.
 - `/help`: Display a help message with available commands.
 
-Feel free to explore and customize the bot's functionality as per your requirements.
+Feel free to explore and customize the bot's functionality to suit your needs.
 
 ## Contributing
 
-Contributions to this project are welcome! If you have ideas for improvements, bug fixes, or new features, please feel free to open an issue or submit a pull request.
+Contributions are welcome! If you have ideas for improvements, bug fixes, or new features, please open an issue or submit a pull request.
 
 ## License
 
-This project is licensed under the GNU GPLv3 License - see the [COPYING](COPYING) file for details.
+This project is licensed under the GNU GPLv3 License. See the [COPYING](COPYING) file for details.
 
 ---
 
