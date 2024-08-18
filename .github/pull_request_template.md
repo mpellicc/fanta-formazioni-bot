@@ -4,10 +4,10 @@
 
 ## Pull Request
 
-#### List of Changes:
+#### List of Changes
 <!--- Describe your changes in detail. -->
 
-#### Motivation and Context:
+#### Motivation and Context
 <!--- Why is this change required? What problem does it solve? -->
 
 #### How Has This Been Tested?
@@ -15,17 +15,17 @@
 <!--- Include details of your testing environment, tests ran to see how -->
 <!--- your change affects other areas of the code, etc. -->
 
-#### Screenshots (if applicable):
+#### Screenshots (if applicable)
 <!--- Include any relevant screenshots or GIFs. -->
 
-#### Types of changes:
+#### Types of changes
 <!--- What types of changes does your code introduce? Put an `x` in all the boxes that apply: -->
 - [ ] Chore (nothing changes by a user perspective)
 - [ ] Bug fix (non-breaking change which fixes an issue)
 - [ ] New feature (non-breaking change which adds functionality)
 - [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
 
-#### Definition of Done:
+#### Definition of Done
 <!--- Go over all the following points, and put an `x` in all the boxes that apply. -->
 <!--- If you're unsure about any of these, don't hesitate to ask. We're here to help! -->
 - [ ] Any conflicts with the main branch have been resolved.
