@@ -1,7 +1,7 @@
 
 # FantaFormazioni Bot
 
-FantaFormazioni Bot is a Telegram bot written in Python designed to help users stay updated with their FantaCalcio team lineups. The bot provides reminder notifications about the deadlines for setting up your team's lineup.
+FantaFormazioni Bot is a Telegram bot written in Python designed to help users stay updated with their Fantacalcio team lineups. The bot provides reminder notifications about the deadlines for setting up your team's lineup.
 
 ## Table of Contents
 
@@ -18,14 +18,14 @@ FantaFormazioni Bot is a Telegram bot written in Python designed to help users s
 
 ## Features
 
-- **FantaCalcio Reminders:** Receive reminders to set up your fantasy football lineup before the deadline.  
+- **Fantacalcio Reminders:** Receive reminders to set up your fantasy football lineup before the deadline.  
   - Reminders are sent 24 hours, 1 hour, and 5 minutes before the lineup deadline, which is set to 5 minutes before the start of the matchday.
 - **User-Friendly Commands:** Interact with the bot using simple and intuitive Telegram commands.
 - **Open Source:** This project is open source, allowing you to customize and contribute to its development.
 
 ### Important
 
-Currently, the bot sends standard reminders in a dedicated channel [@fantaformazionireminders](t.me/fantaformazionireminders). This approach allows ongoing development while still providing users with notifications to set their FantaCalcio lineups.
+Currently, the bot sends standard reminders in a dedicated channel [@fantaformazionireminders](t.me/fantaformazionireminders). This approach allows ongoing development while still providing users with notifications to set their Fantacalcio lineups.
 
 **Note:** Telegram imposes a flood limit of 30 messages per second. Initially, the bot was intended to work in private and group chats, but this limitation might necessitate restricting the bot to channel-only operation, which could limit current and upcoming features.
 
@@ -108,4 +108,4 @@ This project is licensed under the GNU GPLv3 License. See the [COPYING](COPYING)
 
 ---
 
-**Disclaimer:** This project is not affiliated with or endorsed by Telegram or any FantaCalcio league or platform. It is a personal project created for educational and entertainment purposes.
+**Disclaimer:** This project is not affiliated with or endorsed by Telegram or any Fantacalcio league or platform. It is a personal project created for educational and entertainment purposes.
