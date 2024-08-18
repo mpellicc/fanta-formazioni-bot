@@ -14,6 +14,7 @@ python = "3.12.4"
 python-telegram-bot = {extras = ["job_queue"], version = "^21.4"}
 python-dotenv = "^1.0.1"
 requests = "^2.32.3"
+emoji = "^2.12.1"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.8.0"

@@ -15,7 +15,9 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-from bot.handler.commands import help_command, start_command, next_match_command
+import locale
+
+from bot.handler.commands import help_command, next_match_command, start_command
 from bot.handler.errors import default_error_handler
 from bot.handler.handlers import default_response_handler
 from bot.jobs import schedule_jobs
@@ -26,16 +28,19 @@ from utils.logging import get_logger, setup_logging
 
 # Enable logging
 setup_logging()
-logger = get_logger()
+logger = get_logger(__name__)
+
+
+# Instantiate the config
+config: Config = Config()
+locale.setlocale(locale.LC_TIME, "it_IT.UTF-8")
 
 
 def main():
-    config: Config = Config()
-
     # Initialize the database
     create_tables(config.database_file)
 
-    app = Application.builder().token(config.token).build()
+    app = Application.builder().token(config.token).post_init(post_init).build()
 
     # Commands
     app.add_handler(CommandHandler("start", start_command))
@@ -53,6 +58,10 @@ def main():
 
     # Polling
     app.run_polling(poll_interval=1)
+
+
+async def post_init(application: Application) -> None:
+    application.bot_data["config"] = config
 
 
 if __name__ == "__main__":
