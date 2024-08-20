@@ -32,7 +32,7 @@ async def handle_lineup_notifications(
     """
     Handle sending notifications based on the next match's notification times.
     """
-    current_time = datetime.now(config.timezone)
+    current_time = datetime.now()
 
     for seconds_from_expiry in NOTIFICATIONS_TIMES:
         notification_time = next_match.match_datetime - timedelta(

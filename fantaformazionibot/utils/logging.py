@@ -36,5 +36,5 @@ def get_logger(file_name: str, class_name: Optional[str] = None) -> logging.Logg
     if class_name is None:
         name = file_name.rstrip(".")
     else:
-        name = f"{file_name}{class_name}"
+        name = f"{file_name}.{class_name}"
     return logging.getLogger(name)

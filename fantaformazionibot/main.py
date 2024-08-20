@@ -16,19 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import locale
+from typing import List
 
 from bot.handler.commands import help_command, next_match_command, start_command
 from bot.handler.errors import default_error_handler
 from bot.handler.handlers import default_response_handler
 from bot.jobs import schedule_jobs
 from config import Config
-from db.database import create_tables
+from db import database
+from db.model.match import Match
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from utils.dates import get_clean_dates
 from utils.logging import get_logger, setup_logging
 
 # Enable logging
 setup_logging()
-logger = get_logger(__name__)
+logger = get_logger("fantaformazionibot")
 
 
 # Instantiate the config
@@ -37,8 +40,7 @@ locale.setlocale(locale.LC_TIME, "it_IT.UTF-8")
 
 
 def main():
-    # Initialize the database
-    create_tables(config.database_file)
+    init(config)
 
     app = Application.builder().token(config.token).post_init(post_init).build()
 
@@ -62,6 +64,21 @@ def main():
 
 async def post_init(application: Application) -> None:
     application.bot_data["config"] = config
+
+
+def init(config: Config) -> None:
+    """
+    Initialize the bot.
+    """
+
+    # Initialize the database
+    logger.info("Initializing database...")
+    database.create_tables(config.database_file)
+
+    # Initialize the calendar (otherwise the CSV will only be downloaded with the daily job at 1 AM)
+    logger.info("Initializing calendar...")
+    matches: List[Match] = get_clean_dates(config)
+    database.save_matches(config.database_file, matches)
 
 
 if __name__ == "__main__":
