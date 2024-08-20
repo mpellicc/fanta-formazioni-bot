@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "fanta-formazioni-bot"
+name = "fantaformazionibot"
 version = "0.1.0"
 description = "Telegram Bot to remind you of Fantacalcio's line-up"
 authors = ["Matteo Pelliccione <mat.pelliccione@gmail.com>"]
