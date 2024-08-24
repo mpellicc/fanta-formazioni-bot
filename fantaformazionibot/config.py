@@ -63,6 +63,13 @@ class Config:
             raise ValueError("DEVELOPER_CHAT_ID environment variable not set.")
         return developer_chat_id
 
+    @property
+    def debug_chat_id(self) -> str:
+        developer_chat_id = os.getenv("DEBUG_CHAT_ID")
+        if developer_chat_id is None:
+            raise ValueError("DEBUG_CHAT_ID environment variable not set.")
+        return developer_chat_id
+
     @staticmethod
     def _get_season_year() -> int:
         return (
