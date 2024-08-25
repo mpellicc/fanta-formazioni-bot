@@ -1,12 +1,14 @@
 from datetime import datetime
 
+from dateutil import tz
+from telegram import Update
+from telegram.constants import ParseMode
+from telegram.ext import ContextTypes
+
 from config import Config
 from constant.messages import Messages
 from db import database
 from db.model.match import Match
-from telegram import Update
-from telegram.constants import ParseMode
-from telegram.ext import ContextTypes
 from utils.dates import (
     format_date_message,
     format_time_message,
@@ -32,7 +34,7 @@ async def next_match_command(
 
     next_match: Match = database.get_next_match(
         config.database_file,
-        datetime.now(),
+        datetime.now(tz.tzutc()),
     )
 
     if next_match:

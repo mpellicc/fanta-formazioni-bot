@@ -1,11 +1,13 @@
 from datetime import datetime, time
 from typing import List
 
+from dateutil import tz
+from telegram.ext import ContextTypes, JobQueue
+
 from bot.handler.handlers import handle_lineup_notifications
 from config import Config
 from db import database
 from db.model.match import Match
-from telegram.ext import ContextTypes, JobQueue
 from utils.dates import get_clean_dates
 from utils.logging import get_logger
 
@@ -20,7 +22,7 @@ def schedule_jobs(config: Config, job_queue: JobQueue) -> None:
 
     job_queue.run_daily(
         update_matches_job,
-        time=time(hour=1, minute=0, tzinfo=config.timezone),
+        time=time(hour=1, minute=0, tzinfo=tz.gettz(config.timezone)),
         data={"config": config},
     )
 
@@ -53,7 +55,7 @@ async def send_notification_job(context: ContextTypes.DEFAULT_TYPE) -> None:
 
     config: Config = context.job.data["config"]
 
-    next_match: Match = database.get_next_match(config.database_file, datetime.now())
+    next_match: Match = database.get_next_match(config.database_file, datetime.now(tz.tzutc()))
 
     if next_match is None:
         logger.info("[LINEUP_NOTIFICATION] No next match found")
