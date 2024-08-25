@@ -2,6 +2,8 @@ import csv
 from datetime import datetime, timedelta
 from typing import Dict, List
 
+from dateutil import tz
+
 from config import Config
 from db.model.match import Match
 from utils.csv import download_csv
@@ -9,6 +11,7 @@ from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+config: Config = Config()
 
 
 def format_datetime(datetime_obj: datetime) -> str:
@@ -24,10 +27,12 @@ def format_time_message(datetime_obj: datetime) -> str:
 
 
 def get_time_remaining_from_now(datetime_obj: datetime) -> str:
-    return get_time_remaining_message(datetime_obj, datetime.now())
+    return get_time_remaining_message(datetime_obj, datetime.now(tz.tzutc()))
 
 
 def get_time_remaining_message(datetime_to: datetime, datetime_from: datetime) -> str:
+    datetime_from = datetime_from.astimezone(tz=tz.gettz(config.timezone))
+
     # Calculate remaining time until the match
     time_difference = datetime_to - datetime_from
 
@@ -58,7 +63,7 @@ def get_clean_dates(config: Config) -> List[Match]:
         reader = csv.DictReader(csvfile)
 
         # Initialize a dictionary to store the earliest date for each round
-        matches: Dict[Match] = {}
+        matches: Dict[int, Match] = {}
 
         # Iterate through each row in the CSV file
         for row in reader:
@@ -76,8 +81,8 @@ def get_clean_dates(config: Config) -> List[Match]:
 
             # Update the earliest date for the round if needed
             if (
-                round_number not in matches
-                or datetime_obj < matches[round_number].match_datetime
+                    round_number not in matches
+                    or datetime_obj < matches[round_number].match_datetime
             ):
                 matches[round_number] = Match(
                     id=round_number, match_datetime=datetime_obj

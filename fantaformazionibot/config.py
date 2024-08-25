@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Final
 
 from dotenv import load_dotenv
-from zoneinfo import ZoneInfo
+from dateutil import tz
 
 # Load .env
 load_dotenv()
@@ -29,8 +29,8 @@ class Config:
         return bot_username
 
     @property
-    def timezone(self) -> ZoneInfo:
-        return ZoneInfo("Europe/Rome")
+    def timezone(self) -> str:
+        return "Europe/Rome"
 
     @property
     def serie_a_calendar_path(self) -> Path:
@@ -72,8 +72,9 @@ class Config:
 
     @staticmethod
     def _get_season_year() -> int:
+        now = datetime.now(tz.tzutc())
         return (
-            datetime.now().year
-            if datetime.now().month >= 7
-            else (datetime.now().year - 1)
+            now.year
+            if now.month >= 7
+            else (now.year - 1)
         )

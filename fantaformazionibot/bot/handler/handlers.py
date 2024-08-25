@@ -1,14 +1,16 @@
 from datetime import datetime, timedelta
 from typing import List, Union
 
+from dateutil import tz
+from telegram import Update
+from telegram.constants import ParseMode
+from telegram.ext import ContextTypes
+
 from config import Config
 from constant.constants import NOTIFICATIONS_TIMES
 from constant.messages import Messages
 from db import database
 from db.model.match import Match
-from telegram import Update
-from telegram.constants import ParseMode
-from telegram.ext import ContextTypes
 from utils.dates import get_time_remaining_from_now
 
 
@@ -18,9 +20,8 @@ async def default_response_handler(update: Update, _: ContextTypes.DEFAULT_TYPE)
 
     if "ciao" in text.lower():
         await update.message.reply_text("Ciao!")
-        return
-
-    await update.message.reply_text("Non capisco...")
+    else:
+        await update.message.reply_text("Non capisco...")
 
 
 async def handle_lineup_notifications(
@@ -32,7 +33,7 @@ async def handle_lineup_notifications(
     """
     Handle sending notifications based on the next match's notification times.
     """
-    current_time = datetime.now()
+    current_time = datetime.now(tz.tzutc())
 
     for seconds_from_expiry in NOTIFICATIONS_TIMES:
         notification_time = next_match.match_datetime - timedelta(
