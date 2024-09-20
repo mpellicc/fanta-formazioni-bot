@@ -20,11 +20,16 @@ def schedule_jobs(config: Config, job_queue: JobQueue) -> None:
     """
     logger.info("Scheduling jobs...")
 
-    job_queue.run_daily(
-        update_matches_job,
-        time=time(hour=1, minute=0, tzinfo=tz.gettz(config.timezone)),
-        data={"config": config},
-    )
+    """
+    ! Temporarily disabled due to an error on the fixtures by fixturedownload.com
+    ! Dates are not correct and have been manually updated on `fantaformazionibot.db` file
+    ! present in resources folder
+    """
+    # job_queue.run_daily(
+    #     update_matches_job,
+    #     time=time(hour=1, minute=0, tzinfo=tz.gettz(config.timezone)),
+    #     data={"config": config},
+    # )
 
     job_queue.run_repeating(
         send_notification_job,
