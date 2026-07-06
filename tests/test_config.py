@@ -37,6 +37,15 @@ def test_settings_parses_compact_durations_from_env_strings() -> None:
     )
 
 
+def test_settings_parses_allowed_chat_ids() -> None:
+    assert _settings().allowed_chat_ids == ()
+    assert _settings(allowed_chat_ids="").allowed_chat_ids == ()
+    assert _settings(allowed_chat_ids="42, -1002171697436").allowed_chat_ids == (
+        42,
+        -1002171697436,
+    )
+
+
 def test_settings_defaults() -> None:
     settings = _settings()
 
