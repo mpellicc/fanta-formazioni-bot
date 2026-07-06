@@ -1,58 +1,67 @@
 # Deployment
 
-Runtime host: an **Oracle Cloud Always Free** Ampere (ARM) VM running the bot as a Docker container (ADR 0009). CI/CD is GitHub Actions → GHCR → SSH.
+Runtime host: an **Oracle Cloud Always Free** VM running the bot as Docker containers (ADR 0009). CI/CD is GitHub Actions → GHCR → SSH. Two instances live on the same VM (ADR 0010):
+
+| Branch | GitHub environment | VM directory | Image tag | Bot |
+|---|---|---|---|---|
+| `main` | `production` | `~/fantaformazionibot` | `:latest` | production bot → reminder channel |
+| `dev` | `development` | `~/fantaformazionibot-dev` | `:dev` | dev bot → debug chat |
+
+The pipeline owns the VM state: on every deploy it copies `compose.yaml` and regenerates the `.env` from the environment's secrets/variables. **Do not edit those files on the VM** — changes are overwritten at the next deploy. To change configuration, edit the value on GitHub and re-run Deploy.
 
 ## One-time VM setup (manual)
 
-1. **Create the VM** in the Oracle Cloud console:
-   - Shape: `VM.Standard.A1.Flex` (Always Free eligible), 1 OCPU / 6 GB is more than enough.
-   - Image: Ubuntu LTS (aarch64).
-   - Add your SSH public key.
-2. **Install Docker** (with the compose plugin):
+1. **Create the VM** in the Oracle Cloud console: `VM.Standard.A1.Flex` (or `VM.Standard.E2.1.Micro`, both Always Free), Ubuntu LTS image, public IP, your SSH public key.
+2. **Install Docker and add swap** (needed on the 1 GB Micro):
 
    ```bash
    curl -fsSL https://get.docker.com | sudo sh
    sudo usermod -aG docker $USER  # re-login afterwards
+   sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
+   sudo mkswap /swapfile && sudo swapon /swapfile
+   echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
    ```
 
-3. **Prepare the app directory**:
+3. Generate a dedicated deploy key pair locally, authorize the public half on the VM, and keep the private half for the `SSH_KEY` secret:
 
    ```bash
-   mkdir -p ~/fantaformazionibot && cd ~/fantaformazionibot
-   # copy compose.yaml from the repo, then create the env file:
-   cp env.example .env   # fill in TOKEN, CHANNEL_CHAT_ID, DEBUG_CHAT_ID
+   ssh-keygen -t ed25519 -f ~/.ssh/fantabot_deploy -C "github-actions-deploy" -N ""
+   ssh-copy-id -f -i ~/.ssh/fantabot_deploy.pub ubuntu@<VM_IP>
    ```
 
-   The compose file uses the prebuilt GHCR image; the SQLite DB lives on the named volume `bot-data`.
+Everything else (app directories, compose file, env files) is created by the deploy workflow.
 
-4. **First start**:
+## GitHub configuration
 
-   ```bash
-   docker compose pull && docker compose up -d
-   docker compose logs -f   # check startup: calendar fetched, reminders scheduled
-   ```
-
-## CI/CD
-
-- **`.github/workflows/ci.yml`** — on every push and PR: `uv sync`, `ruff check`, `ruff format --check`, `mypy src`, `pytest`.
-- **`.github/workflows/deploy.yml`** — on push to `main` (after CI passes):
-  1. Build the image for `linux/arm64` with buildx and push to `ghcr.io/<owner>/fanta-formazioni-bot:latest` (plus the commit SHA tag).
-  2. SSH into the VM and run `docker compose pull && docker compose up -d`.
-
-### Required repository secrets
+**Repository-level secrets** (shared by both environments):
 
 | Secret | Purpose |
 |---|---|
 | `SSH_HOST` | VM public IP |
 | `SSH_USER` | VM user (e.g. `ubuntu`) |
-| `SSH_KEY` | Private key matching the VM's authorized key |
+| `SSH_KEY` | Deploy private key |
 
-`GITHUB_TOKEN` (automatic) is used to push to GHCR. If the GHCR package is private, run `docker login ghcr.io` once on the VM with a read-only PAT.
+**Per-environment** (Settings → Environments → `production` / `development`):
+
+| Name | Kind | Purpose |
+|---|---|---|
+| `BOT_TOKEN` | secret | Bot token from BotFather (separate bot per environment — polling forbids sharing) |
+| `CHANNEL_CHAT_ID` | variable | Chat receiving reminders (prod: the channel; dev: the debug chat) |
+| `DEBUG_CHAT_ID` | variable | Chat receiving error reports |
+
+## Workflows
+
+- **`ci.yml`** — push to `main`/`dev` and every PR: `ruff check`, `ruff format --check`, `mypy src`, `pytest`.
+- **`deploy.yml`** — push to `main` or `dev` (or manual `workflow_dispatch`): build multi-arch image (amd64+arm64), push to GHCR with the branch's tag, then over SSH: copy `compose.yaml`, write `.env` from the environment's config, `docker compose pull && up -d` in the branch's directory.
+
+## Branching flow
+
+`dev` is the default branch. Feature branches → PR into `dev` (auto-deploys the dev bot) → release PR `dev` → `main` (deploys production).
 
 ## Operations
 
-- **Logs**: `docker compose logs -f`
-- **Restart**: `docker compose restart`
-- **Manual deploy**: re-run the deploy workflow, or on the VM `docker compose pull && docker compose up -d`
-- **DB backup**: `docker run --rm -v fantaformazionibot_bot-data:/data -v $PWD:/backup alpine cp /data/fantaformazionibot.db /backup/` — losing it only loses sent-reminder markers.
-- **Errors at runtime** are sent by the bot itself to `DEBUG_CHAT_ID`.
+- **Logs**: `ssh <vm>` then `docker compose logs -f` in `~/fantaformazionibot` (prod) or `~/fantaformazionibot-dev` (dev)
+- **Manual deploy / config reload**: Actions → Deploy → Run workflow (pick the branch)
+- **Rotate a token**: update the environment secret, re-run Deploy
+- **DB backup** (prod): `docker run --rm -v fantaformazionibot_bot-data:/data -v $PWD:/backup alpine cp /data/fantaformazionibot.db /backup/` — losing it only loses sent-reminder markers
+- **Runtime errors** are sent by the bot itself to the environment's `DEBUG_CHAT_ID`
