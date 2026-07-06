@@ -54,9 +54,11 @@ Everything else (app directories, compose file, env files) is created by the dep
 - **`ci.yml`** — push to `main`/`dev` and every PR: `ruff check`, `ruff format --check`, `mypy src`, `pytest`.
 - **`deploy.yml`** — push to `main` or `dev` (or manual `workflow_dispatch`): build multi-arch image (amd64+arm64), push to GHCR with the branch's tag, then over SSH: copy `compose.yaml`, write `.env` from the environment's config, `docker compose pull && up -d` in the branch's directory.
 
-## Branching flow
+## Branching and release flow
 
 `dev` is the default branch. Feature branches → PR into `dev` (auto-deploys the dev bot) → release PR `dev` → `main` (deploys production).
+
+Releases are versioned via the **Prepare release** workflow (ADR 0011): Actions → Prepare release → run on `dev` choosing patch/minor/major. It bumps `pyproject.toml`, commits `Release vX.Y.Z` to `dev`, and opens the release PR. Merging it deploys production, tags the image (`:X.Y.Z` + `:latest`), creates the git tag `vX.Y.Z`, and publishes the GitHub Release with auto-generated notes.
 
 ## Operations
 
