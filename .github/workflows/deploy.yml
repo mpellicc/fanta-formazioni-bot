@@ -2,10 +2,10 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
-concurrency: deploy
+concurrency: deploy-${{ github.ref_name }}
 
 jobs:
   build-and-push:
@@ -28,7 +28,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.ref_name == 'main' && 'latest' || 'dev' }}
             ghcr.io/${{ github.repository }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -36,13 +36,36 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+    env:
+      APP_DIR: ${{ github.ref_name == 'main' && 'fantaformazionibot' || 'fantaformazionibot-dev' }}
+      IMAGE_TAG: ${{ github.ref_name == 'main' && 'latest' || 'dev' }}
     steps:
-      - uses: appleboy/ssh-action@v1
+      - uses: actions/checkout@v4
+      - name: Copy compose file
+        uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          source: compose.yaml
+          target: ${{ env.APP_DIR }}
+      - name: Write env file and restart
+        uses: appleboy/ssh-action@v1
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHANNEL_CHAT_ID: ${{ vars.CHANNEL_CHAT_ID }}
+          DEBUG_CHAT_ID: ${{ vars.DEBUG_CHAT_ID }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          envs: BOT_TOKEN,CHANNEL_CHAT_ID,DEBUG_CHAT_ID,APP_DIR,IMAGE_TAG
           script: |
-            cd ~/fantaformazionibot
+            set -e
+            cd ~/"$APP_DIR"
+            umask 177
+            printf 'TOKEN=%s\nCHANNEL_CHAT_ID=%s\nDEBUG_CHAT_ID=%s\nIMAGE_TAG=%s\n' \
+              "$BOT_TOKEN" "$CHANNEL_CHAT_ID" "$DEBUG_CHAT_ID" "$IMAGE_TAG" > .env
             docker compose pull
             docker compose up -d

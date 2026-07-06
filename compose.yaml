@@ -1,6 +1,6 @@
 services:
   bot:
-    image: ghcr.io/mpellicc/fanta-formazioni-bot:latest
+    image: ghcr.io/mpellicc/fanta-formazioni-bot:${IMAGE_TAG:-latest}
     build: .
     env_file: .env
     environment:

@@ -42,6 +42,7 @@ async def _post_init(application: BotApp) -> None:
             ),
         )
     )
+    repository.prune_channel_subscriptions(settings.channel_chat_id)
     await refresh_calendar(application)
 
 

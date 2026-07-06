@@ -93,6 +93,19 @@ class Repository:
                 ),
             )
 
+    def prune_channel_subscriptions(self, keep_chat_id: int) -> None:
+        """Drop channel subscriptions other than the configured one.
+
+        The env-configured channel owns the single 'channel' row; when CHANNEL_CHAT_ID
+        changes, the stale row must not keep receiving reminders. User/group
+        subscriptions are untouched.
+        """
+        with self._conn:
+            self._conn.execute(
+                "DELETE FROM subscriptions WHERE chat_type = 'channel' AND chat_id != ?",
+                (keep_chat_id,),
+            )
+
     def get_subscriptions(self) -> list[Subscription]:
         rows = self._conn.execute("SELECT chat_id, chat_type, reminder_offsets FROM subscriptions")
         return [
