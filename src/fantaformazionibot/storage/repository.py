@@ -33,10 +33,17 @@ class Repository:
                 CREATE TABLE IF NOT EXISTS subscriptions (
                     chat_id INTEGER PRIMARY KEY,
                     chat_type TEXT NOT NULL,
-                    reminder_offsets TEXT NOT NULL
+                    reminder_offsets TEXT NOT NULL,
+                    origin TEXT NOT NULL DEFAULT 'env'
                 )
                 """
             )
+            # Pre-origin databases: existing rows are the env-seeded channel.
+            columns = {row[1] for row in self._conn.execute("PRAGMA table_info(subscriptions)")}
+            if "origin" not in columns:
+                self._conn.execute(
+                    "ALTER TABLE subscriptions ADD COLUMN origin TEXT NOT NULL DEFAULT 'env'"
+                )
             self._conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS sent_reminders (
@@ -80,41 +87,49 @@ class Repository:
         with self._conn:
             self._conn.execute(
                 """
-                INSERT INTO subscriptions (chat_id, chat_type, reminder_offsets)
-                VALUES (?, ?, ?)
+                INSERT INTO subscriptions (chat_id, chat_type, reminder_offsets, origin)
+                VALUES (?, ?, ?, ?)
                 ON CONFLICT (chat_id) DO UPDATE SET
                     chat_type = excluded.chat_type,
-                    reminder_offsets = excluded.reminder_offsets
+                    reminder_offsets = excluded.reminder_offsets,
+                    origin = excluded.origin
                 """,
                 (
                     subscription.chat_id,
                     subscription.chat_type,
                     json.dumps(list(subscription.reminder_offsets)),
+                    subscription.origin,
                 ),
             )
 
     def prune_channel_subscriptions(self, keep_chat_id: int) -> None:
-        """Drop channel subscriptions other than the configured one.
+        """Drop env-owned channel subscriptions other than the configured one.
 
-        The env-configured channel owns the single 'channel' row; when CHANNEL_CHAT_ID
-        changes, the stale row must not keep receiving reminders. User/group
-        subscriptions are untouched.
+        When CHANNEL_CHAT_ID changes, the previously seeded row must not keep
+        receiving reminders. Only rows with origin='env' are considered:
+        user-created subscriptions (any type, channels included) are untouched.
         """
         with self._conn:
             self._conn.execute(
-                "DELETE FROM subscriptions WHERE chat_type = 'channel' AND chat_id != ?",
+                """
+                DELETE FROM subscriptions
+                WHERE origin = 'env' AND chat_type = 'channel' AND chat_id != ?
+                """,
                 (keep_chat_id,),
             )
 
     def get_subscriptions(self) -> list[Subscription]:
-        rows = self._conn.execute("SELECT chat_id, chat_type, reminder_offsets FROM subscriptions")
+        rows = self._conn.execute(
+            "SELECT chat_id, chat_type, reminder_offsets, origin FROM subscriptions"
+        )
         return [
             Subscription(
                 chat_id=chat_id,
                 chat_type=chat_type,
                 reminder_offsets=tuple(json.loads(offsets)),
+                origin=origin,
             )
-            for chat_id, chat_type, offsets in rows
+            for chat_id, chat_type, offsets, origin in rows
         ]
 
     # --- sent reminders ---

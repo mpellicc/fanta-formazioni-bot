@@ -58,7 +58,8 @@ Reminders whose time is already in the past at scheduling time are skipped, neve
 ```sql
 matchdays      (round INTEGER PRIMARY KEY, kickoff_utc TEXT NOT NULL)          -- real kickoff, ISO 8601 UTC
 subscriptions  (chat_id INTEGER PRIMARY KEY, chat_type TEXT NOT NULL,
-                reminder_offsets TEXT NOT NULL)                                -- JSON array of seconds
+                reminder_offsets TEXT NOT NULL,                                -- JSON array of seconds
+                origin TEXT NOT NULL DEFAULT 'env')                            -- 'env' (config-seeded) | 'user'
 sent_reminders (chat_id INTEGER, round INTEGER, offset_seconds INTEGER,
                 UNIQUE(chat_id, round, offset_seconds))
 ```
@@ -89,5 +90,6 @@ Telegram messages use **HTML parse mode** (not MarkdownV2): static texts need no
 | `DATABASE_PATH` | no | `fantaformazionibot.db` | SQLite file path |
 | `DEADLINE_MARGIN` | no | `5m` | Deadline = kickoff − margin (ADR 0006) |
 | `REMINDER_OFFSETS` | no | `24h,1h,5m` | Reminder times before the deadline |
+| `ALLOWED_CHAT_IDS` | no | empty (open) | If non-empty, commands are answered only in these chats (dev bot whitelist) |
 
 Durations accept `Ns`, `Nm`, `Nh` (e.g. `24h`, `90m`, `30s`).

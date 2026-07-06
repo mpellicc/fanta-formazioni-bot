@@ -38,6 +38,8 @@ class Settings(BaseSettings):
         timedelta(hours=1),
         timedelta(minutes=5),
     )
+    # If non-empty, commands are answered only in these chats (silence elsewhere).
+    allowed_chat_ids: Annotated[tuple[int, ...], NoDecode] = ()
 
     @field_validator("deadline_margin", mode="before")
     @classmethod
@@ -54,4 +56,14 @@ class Settings(BaseSettings):
             if not offsets:
                 raise ValueError("REMINDER_OFFSETS must contain at least one duration")
             return offsets
+        return value
+
+    @field_validator("allowed_chat_ids", mode="before")
+    @classmethod
+    def _parse_allowed_chat_ids(cls, value: object) -> object:
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return ()
+            return tuple(int(part.strip()) for part in stripped.split(","))
         return value

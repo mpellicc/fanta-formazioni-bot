@@ -22,3 +22,7 @@ Sent-reminder dedup is keyed per subscription: `sent_reminders(chat_id, round, o
 
 - Future features become INSERTs plus new command handlers; the engine and schema don't change.
 - Reminder offsets are already per-subscription in the data model; the env value only seeds the default channel row.
+
+## Amendment (2026-07-07): subscription ownership
+
+Changing `CHANNEL_CHAT_ID` left the previously seeded channel row in place, so reminders went to both chats. Rows now carry an `origin` column: `env` for the config-seeded channel, `user` for future user-created subscriptions. At startup, stale `origin='env'` channel rows are pruned; `user` rows — including channels users will add the bot to — are never touched by config changes.

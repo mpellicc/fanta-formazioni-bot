@@ -40,6 +40,7 @@ async def _post_init(application: BotApp) -> None:
             reminder_offsets=tuple(
                 int(offset.total_seconds()) for offset in settings.reminder_offsets
             ),
+            origin="env",
         )
     )
     repository.prune_channel_subscriptions(settings.channel_chat_id)
@@ -55,10 +56,15 @@ def run() -> None:
     application.bot_data["repository"] = Repository(settings.database_path)
     application.bot_data["provider"] = create_provider(settings)
 
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("prossima_scadenza", next_deadline_command))
-    application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
+    # With ALLOWED_CHAT_IDS set (dev environment), other chats get silence.
+    gate = filters.Chat(chat_id=settings.allowed_chat_ids) if settings.allowed_chat_ids else None
+    unknown_filter = filters.COMMAND if gate is None else filters.COMMAND & gate
+    application.add_handler(CommandHandler("start", start_command, filters=gate))
+    application.add_handler(CommandHandler("help", help_command, filters=gate))
+    application.add_handler(
+        CommandHandler("prossima_scadenza", next_deadline_command, filters=gate)
+    )
+    application.add_handler(MessageHandler(unknown_filter, unknown_command))
     application.add_error_handler(error_handler)
 
     job_queue = application.job_queue

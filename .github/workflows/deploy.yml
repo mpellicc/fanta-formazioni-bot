@@ -56,16 +56,17 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHANNEL_CHAT_ID: ${{ vars.CHANNEL_CHAT_ID }}
           DEBUG_CHAT_ID: ${{ vars.DEBUG_CHAT_ID }}
+          ALLOWED_CHAT_IDS: ${{ vars.ALLOWED_CHAT_IDS }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          envs: BOT_TOKEN,CHANNEL_CHAT_ID,DEBUG_CHAT_ID,APP_DIR,IMAGE_TAG
+          envs: BOT_TOKEN,CHANNEL_CHAT_ID,DEBUG_CHAT_ID,ALLOWED_CHAT_IDS,APP_DIR,IMAGE_TAG
           script: |
             set -e
             cd ~/"$APP_DIR"
             umask 177
-            printf 'TOKEN=%s\nCHANNEL_CHAT_ID=%s\nDEBUG_CHAT_ID=%s\nIMAGE_TAG=%s\n' \
-              "$BOT_TOKEN" "$CHANNEL_CHAT_ID" "$DEBUG_CHAT_ID" "$IMAGE_TAG" > .env
+            printf 'TOKEN=%s\nCHANNEL_CHAT_ID=%s\nDEBUG_CHAT_ID=%s\nALLOWED_CHAT_IDS=%s\nIMAGE_TAG=%s\n' \
+              "$BOT_TOKEN" "$CHANNEL_CHAT_ID" "$DEBUG_CHAT_ID" "$ALLOWED_CHAT_IDS" "$IMAGE_TAG" > .env
             docker compose pull
             docker compose up -d
