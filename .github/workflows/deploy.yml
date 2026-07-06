@@ -46,6 +46,8 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
     env:
       APP_DIR: ${{ github.ref_name == 'main' && 'fantaformazionibot' || 'fantaformazionibot-dev' }}
