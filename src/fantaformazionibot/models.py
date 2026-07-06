@@ -12,11 +12,17 @@ class Matchday:
 
 @dataclass(frozen=True, slots=True)
 class Subscription:
-    """A chat that receives lineup reminders."""
+    """A chat that receives lineup reminders.
+
+    origin marks who owns the row: "env" for the channel seeded from
+    CHANNEL_CHAT_ID (pruned/replaced when the config changes), "user" for
+    future user-created subscriptions (never touched by config changes).
+    """
 
     chat_id: int
     chat_type: str
     reminder_offsets: tuple[int, ...]  # seconds before the deadline
+    origin: str = "user"
 
 
 @dataclass(frozen=True, slots=True)

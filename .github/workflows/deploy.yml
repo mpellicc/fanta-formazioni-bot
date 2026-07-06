@@ -2,10 +2,10 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
-concurrency: deploy
+concurrency: deploy-${{ github.ref_name }}
 
 jobs:
   build-and-push:
@@ -22,27 +22,82 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute image tags
+        id: meta
+        run: |
+          REPO="ghcr.io/${{ github.repository }}"
+          TAGS="$REPO:${{ github.sha }}"
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            VERSION=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+            TAGS="$TAGS,$REPO:latest,$REPO:$VERSION"
+          else
+            TAGS="$TAGS,$REPO:dev"
+          fi
+          echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+    env:
+      APP_DIR: ${{ github.ref_name == 'main' && 'fantaformazionibot' || 'fantaformazionibot-dev' }}
+      IMAGE_TAG: ${{ github.ref_name == 'main' && 'latest' || 'dev' }}
     steps:
-      - uses: appleboy/ssh-action@v1
+      - uses: actions/checkout@v4
+      - name: Copy compose file
+        uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          source: compose.yaml
+          target: ${{ env.APP_DIR }}
+      - name: Write env file and restart
+        uses: appleboy/ssh-action@v1
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHANNEL_CHAT_ID: ${{ vars.CHANNEL_CHAT_ID }}
+          DEBUG_CHAT_ID: ${{ vars.DEBUG_CHAT_ID }}
+          ALLOWED_CHAT_IDS: ${{ vars.ALLOWED_CHAT_IDS }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          envs: BOT_TOKEN,CHANNEL_CHAT_ID,DEBUG_CHAT_ID,ALLOWED_CHAT_IDS,APP_DIR,IMAGE_TAG
           script: |
-            cd ~/fantaformazionibot
+            set -e
+            cd ~/"$APP_DIR"
+            umask 177
+            printf 'TOKEN=%s\nCHANNEL_CHAT_ID=%s\nDEBUG_CHAT_ID=%s\nALLOWED_CHAT_IDS=%s\nIMAGE_TAG=%s\n' \
+              "$BOT_TOKEN" "$CHANNEL_CHAT_ID" "$DEBUG_CHAT_ID" "$ALLOWED_CHAT_IDS" "$IMAGE_TAG" > .env
             docker compose pull
             docker compose up -d
+
+  release:
+    if: github.ref_name == 'main'
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create git tag and GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "Release v$VERSION already exists, skipping"
+          else
+            gh release create "v$VERSION" --title "v$VERSION" --generate-notes
+          fi
