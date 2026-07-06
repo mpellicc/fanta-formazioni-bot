@@ -161,3 +161,15 @@ cython_debug/
 
 # IDEs
 .vscode/
+
+# ruff
+.ruff_cache/
+
+# SQLite database
+*.db
+*.db-wal
+*.db-shm
+
+# Environment variables file
+.env
+.env.*

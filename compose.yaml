@@ -1,0 +1,13 @@
+services:
+  bot:
+    image: ghcr.io/mpellicc/fanta-formazioni-bot:latest
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/fantaformazionibot.db
+    volumes:
+      - bot-data:/data
+    restart: unless-stopped
+
+volumes:
+  bot-data:
