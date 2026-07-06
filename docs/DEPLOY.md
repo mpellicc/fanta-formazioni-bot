@@ -60,6 +60,12 @@ Everything else (app directories, compose file, env files) is created by the dep
 
 Releases are versioned via the **Prepare release** workflow (ADR 0011): Actions → Prepare release → run on `dev` choosing patch/minor/major. It bumps `pyproject.toml`, commits `Release vX.Y.Z` to `dev`, and opens the release PR. Merging it deploys production, tags the image (`:X.Y.Z` + `:latest`), creates the git tag `vX.Y.Z`, and publishes the GitHub Release with auto-generated notes.
 
+Merge conventions:
+
+- PRs into `dev`: **squash merge** (one commit per feature).
+- Release PRs into `main`: **merge commit** — never squash, or `dev` and `main` histories diverge and later release PRs show phantom conflicts.
+- `main` requires one approving review. Release PRs are authored by `github-actions[bot]`, so the repository owner can approve them himself; the release PR shows no CI checks (PRs opened with `GITHUB_TOKEN` don't trigger workflows) — the same code already passed CI on `dev`.
+
 ## Operations
 
 - **Logs**: `ssh <vm>` then `docker compose logs -f` in `~/fantaformazionibot` (prod) or `~/fantaformazionibot-dev` (dev)
