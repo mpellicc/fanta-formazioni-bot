@@ -22,14 +22,24 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute image tags
+        id: meta
+        run: |
+          REPO="ghcr.io/${{ github.repository }}"
+          TAGS="$REPO:${{ github.sha }}"
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            VERSION=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+            TAGS="$TAGS,$REPO:latest,$REPO:$VERSION"
+          else
+            TAGS="$TAGS,$REPO:dev"
+          fi
+          echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:${{ github.ref_name == 'main' && 'latest' || 'dev' }}
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -69,3 +79,22 @@ jobs:
               "$BOT_TOKEN" "$CHANNEL_CHAT_ID" "$DEBUG_CHAT_ID" "$IMAGE_TAG" > .env
             docker compose pull
             docker compose up -d
+
+  release:
+    if: github.ref_name == 'main'
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create git tag and GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "Release v$VERSION already exists, skipping"
+          else
+            gh release create "v$VERSION" --title "v$VERSION" --generate-notes
+          fi
