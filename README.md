@@ -1,110 +1,63 @@
-
 # FantaFormazioni Bot
 
-FantaFormazioni Bot is a Telegram bot written in Python designed to help users stay updated with their Fantacalcio team lineups. The bot provides reminder notifications about the deadlines for setting up your team's lineup.
+A Telegram bot that reminds you to set your **Fantacalcio** lineup before each Serie A matchday deadline.
 
-## Table of Contents
+Reminders are posted to the [@fantaformazionireminders](https://t.me/fantaformazionireminders) channel at configurable times before the deadline (by default 24 hours, 1 hour, and 5 minutes). The deadline is the kickoff of the round's first match minus a configurable safety margin (5 minutes by default).
 
-- [FantaFormazioni Bot](#fantaformazioni-bot)
-  - [Table of Contents](#table-of-contents)
-  - [Features](#features)
-    - [Important](#important)
-  - [Getting Started](#getting-started)
-    - [Prerequisites](#prerequisites)
-    - [Installation](#installation)
-  - [Usage](#usage)
-  - [Contributing](#contributing)
-  - [License](#license)
+## Commands
 
-## Features
+- `/start` — introduction to the bot
+- `/prossima_scadenza` — next matchday's deadline and remaining time
+- `/help` — list of commands
 
-- **Fantacalcio Reminders:** Receive reminders to set up your fantasy football lineup before the deadline.  
-  - Reminders are sent 24 hours, 1 hour, and 5 minutes before the lineup deadline, which is set to 5 minutes before the start of the matchday.
-- **User-Friendly Commands:** Interact with the bot using simple and intuitive Telegram commands.
-- **Open Source:** This project is open source, allowing you to customize and contribute to its development.
+## How it works
 
-### Important
+- The Serie A calendar is fetched from [fixturedownload.com](https://fixturedownload.com) (CSV, UTC) at startup and refreshed daily; the source is pluggable via `CALENDAR_PROVIDER`.
+- Each reminder is scheduled as an exact-time job; sent reminders are tracked in SQLite so restarts never cause duplicates.
+- See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design and [docs/adr/](docs/adr/) for the architectural decision records.
 
-Currently, the bot sends standard reminders in a dedicated channel [@fantaformazionireminders](t.me/fantaformazionireminders). This approach allows ongoing development while still providing users with notifications to set their Fantacalcio lineups.
+## Development
 
-**Note:** Telegram imposes a flood limit of 30 messages per second. Initially, the bot was intended to work in private and group chats, but this limitation might necessitate restricting the bot to channel-only operation, which could limit current and upcoming features.
+Requires [uv](https://docs.astral.sh/uv/) (Python 3.13 is provisioned automatically).
 
-## Getting Started
+```bash
+git clone https://github.com/mpellicc/fanta-formazioni-bot.git
+cd fanta-formazioni-bot
+uv sync
 
-To get started with FantaFormazioni Bot, follow these steps:
+cp env.example .env   # fill in TOKEN, CHANNEL_CHAT_ID, DEBUG_CHAT_ID
 
-### Prerequisites
+uv run python -m fantaformazionibot
+```
 
-Before running the bot, ensure you have the following:
+Checks:
 
-- Python 3.9+ installed on your system (the bot is developed in Python 3.12.4).
-- A Telegram account and a bot token obtained from the [BotFather](https://core.telegram.org/bots#botfather).
+```bash
+uv run ruff check && uv run ruff format --check
+uv run mypy src
+uv run pytest
+```
 
-### Installation
+## Running with Docker
 
-> **Note:** This guide uses [Poetry](https://python-poetry.org/), but you can use [pip](https://pip.pypa.io/en/stable/getting-started/) as well. A `requirements.txt` file is provided for pip users.
+```bash
+cp env.example .env   # fill in the required values
+docker compose up -d --build
+```
 
-1. **Install Poetry** by following [the official guide](https://python-poetry.org/docs/#installation).
+The SQLite database lives on the `bot-data` volume. Production deployment (Oracle Cloud Always Free + GitHub Actions) is documented in [docs/DEPLOY.md](docs/DEPLOY.md).
 
-2. **Clone the repository:**
+## Configuration
 
-   ```bash
-   git clone https://github.com/mpellicc/fanta-formazioni-bot.git
-   ```
-
-3. **Navigate to the project directory:**
-
-   ```bash
-   cd fanta-formazioni-bot
-   ```
-
-4. **Install the required Python packages:**
-
-   ```bash
-   poetry install
-   ```
-
-5. **Activate the virtual environment:**
-
-   ```bash
-   poetry shell
-   ```
-
-6. **Set up the environment variables:**
-   - Create a `.env` file in the project directory.
-   - You can copy the template from `env.example`:
-
-     ```bash
-     cp env.example .env
-     ```
-
-   - Update the `.env` file with your specific configuration values.
-
-7. **Start the bot:**
-
-   ```bash
-   python fantaformazionibot/main.py
-   ```
-
-Your FantaFormazioni Bot should now be up and running.
-
-## Usage
-
-The bot provides various commands for interacting with it. Start a chat with the bot and use the following commands:
-
-- `/start`: Start a chat with the bot and receive an introduction.
-- `/prossima_scadenza`: Display the next deadline for setting up your team's lineup.
-- `/help`: Display a help message with available commands.
-
-Feel free to explore and customize the bot's functionality to suit your needs.
+All configuration is via environment variables (or `.env`); see [env.example](env.example) for the full list and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#environment-variables) for details. Required: `TOKEN` (from [@BotFather](https://core.telegram.org/bots#botfather)), `CHANNEL_CHAT_ID`, `DEBUG_CHAT_ID`.
 
 ## Contributing
 
-Contributions are welcome! If you have ideas for improvements, bug fixes, or new features, please open an issue or submit a pull request.
+Contributions are welcome! Please open an issue or a pull request. Before proposing architectural changes, check the relevant ADR in [docs/adr/](docs/adr/).
 
 ## License
 
-This project is licensed under the GNU GPLv3 License. See the [COPYING](COPYING) file for details.
+GNU GPLv3 — see [COPYING](COPYING).
 
 ---
 
