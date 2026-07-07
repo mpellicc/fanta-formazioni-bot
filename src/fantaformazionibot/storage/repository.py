@@ -118,6 +118,35 @@ class Repository:
                 (keep_chat_id,),
             )
 
+    def get_subscription(self, chat_id: int) -> Subscription | None:
+        row = self._conn.execute(
+            "SELECT chat_id, chat_type, reminder_offsets, origin FROM subscriptions"
+            " WHERE chat_id = ?",
+            (chat_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        chat_id, chat_type, offsets, origin = row
+        return Subscription(
+            chat_id=chat_id,
+            chat_type=chat_type,
+            reminder_offsets=tuple(json.loads(offsets)),
+            origin=origin,
+        )
+
+    def delete_user_subscription(self, chat_id: int) -> bool:
+        """Delete the chat's subscription if user-owned; report whether a row was deleted.
+
+        The env-seeded channel row is owned by config (ADR 0012): commands
+        must not delete it, hence the origin filter.
+        """
+        with self._conn:
+            cursor = self._conn.execute(
+                "DELETE FROM subscriptions WHERE chat_id = ? AND origin = 'user'",
+                (chat_id,),
+            )
+        return cursor.rowcount > 0
+
     def get_subscriptions(self) -> list[Subscription]:
         rows = self._conn.execute(
             "SELECT chat_id, chat_type, reminder_offsets, origin FROM subscriptions"

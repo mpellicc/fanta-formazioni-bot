@@ -21,7 +21,8 @@ src/fantaformazionibot/
     planner.py           pure logic: deadline = kickoff − margin, reminder times, filtering
     jobs.py              PTB jobs: daily calendar refresh, reminder send, (re)scheduling
   telegram/
-    commands.py          /start /help /prossima_scadenza + unknown-command fallback
+    commands.py          /start /help /prossima_scadenza /promemoria_on /promemoria_off
+                         /promemoria + unknown-command fallback
     errors.py            error handler → DEBUG_CHAT_ID
     messages.py          all user-facing Italian texts (HTML parse mode)
   format.py              Italian date/duration formatting (static month names, zoneinfo)
@@ -42,6 +43,13 @@ src/fantaformazionibot/
 ### Daily calendar refresh
 
 `refresh_calendar_job` → provider fetch → upsert matchdays → drop all scheduled reminder jobs (name prefix `reminder:`) → recompute plan → schedule again. Kickoff changes during the season are picked up here.
+
+### Subscribing a chat
+
+`/promemoria_on` inserts a `subscriptions` row for the current chat (`origin='user'`,
+default offsets from `REMINDER_OFFSETS`) and triggers `reschedule_reminders`;
+`/promemoria_off` deletes it (only `origin='user'` rows) and reschedules;
+`/promemoria` shows the current state. In groups, on/off are admin-only (ADR 0012).
 
 ### Sending a reminder
 
