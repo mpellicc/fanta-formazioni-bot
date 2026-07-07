@@ -9,6 +9,7 @@ def test_parse_duration() -> None:
     assert parse_duration("30s") == timedelta(seconds=30)
     assert parse_duration("5m") == timedelta(minutes=5)
     assert parse_duration("24h") == timedelta(hours=24)
+    assert parse_duration("2g") == timedelta(days=2)
 
 
 @pytest.mark.parametrize("value", ["", "5", "5d", "abc", "1h30m"])

@@ -23,7 +23,11 @@ src/fantaformazionibot/
     jobs.py              PTB jobs: daily calendar refresh, reminder send, (re)scheduling
   telegram/
     commands.py          /start /help /prossima_scadenza /promemoria_on /promemoria_off
-                         /promemoria /personalizza_orari + unknown-command fallback
+                         /promemoria /personalizza_orari + unknown-command fallback;
+                         subscribe/unsubscribe/set_offsets are shared with callbacks.py
+    keyboards.py         inline keyboard builders + callback_data codec (pure, ADR 0015)
+    callbacks.py         CallbackQueryHandler entry points + the "Personalizzati"
+                         ConversationHandler (free-form offset input, ADR 0015)
     errors.py            error handler → DEBUG_CHAT_ID
     messages.py          all user-facing Italian texts (HTML parse mode)
   format.py              Italian date/duration formatting (static month names, zoneinfo)
@@ -57,6 +61,22 @@ default offsets from `REMINDER_OFFSETS`) and triggers `reschedule_reminders`;
 if none exists) or resets it to the configured default with `default`; same
 admin-only rule in groups (ADR 0013).
 
+### Inline keyboards (ADR 0015)
+
+`/start`, `/promemoria` and `/personalizza_orari` (no args) attach inline
+keyboards on top of the same subscribe/unsubscribe/set-offsets logic
+(`telegram/commands.py`'s `subscribe`/`unsubscribe`/`set_offsets`, reused by
+`telegram/callbacks.py`). The offsets grid is a multi-select over 8 presets
+(2g/24h/12h/3h/1h/30m/10m/5m); which ones are checked travels statelessly in
+`callback_data` as a bitmask (`telegram/keyboards.py`), so it survives a bot
+restart. Every button press edits the pressed message in place. The
+**Personalizzati** button starts a `ConversationHandler` that prompts with
+`ForceReply` for a free-form value (e.g. `2g,12h,10m`, parsed with the same
+`parse_offsets_args` as the text command) and exits via **⬅️ Indietro**,
+`/annulla`, or a 5-minute timeout — all three restore the original grid.
+Admin enforcement (ADR 0012) is re-checked per callback, since any group
+member can press a button.
+
 ### Sending a reminder
 
 Each reminder job carries `(chat_id, round, offset_seconds)`. On fire it:
@@ -78,7 +98,7 @@ sent_reminders (chat_id INTEGER, round INTEGER, offset_seconds INTEGER,
                 UNIQUE(chat_id, round, offset_seconds))
 ```
 
-The DB is fully regenerable from the feed except `sent_reminders` (worst case after deletion: one duplicate reminder).
+`matchdays` fully regenerates from the calendar feed. `sent_reminders` is disposable (worst case after deletion: one duplicate reminder). `subscriptions` is **not** regenerable: it holds every user/group's `/promemoria_on` state and (since ADR 0013) custom `reminder_offsets` — back it up before anything destructive.
 
 ## Datetime policy
 

@@ -18,15 +18,20 @@ class CalendarProvider(StrEnum):
     FOOTBALL_DATA_ORG = "football-data-org"
 
 
-_DURATION_RE = re.compile(r"^\s*(\d+)\s*([smh])\s*$")
-_DURATION_UNITS = {"s": 1, "m": 60, "h": 3600}
+_DURATION_RE = re.compile(r"^\s*(\d+)\s*([smhg])\s*$")
+_DURATION_UNITS = {"s": 1, "m": 60, "h": 3600, "g": 86400}
 
 
 def parse_duration(value: str) -> timedelta:
-    """Parse a compact duration string such as '5m', '24h' or '30s'."""
+    """Parse a compact duration string such as '5m', '24h', '2g' or '30s'.
+
+    's' is accepted for backward compatibility (already shipped for
+    REMINDER_OFFSETS/`/personalizza_orari`) but no longer shown in user-facing
+    text — see ADR 0015.
+    """
     matched = _DURATION_RE.match(value)
     if matched is None:
-        raise ValueError(f"invalid duration {value!r}, expected e.g. '5m', '24h', '30s'")
+        raise ValueError(f"invalid duration {value!r}, expected e.g. '5m', '24h', '2g'")
     return timedelta(seconds=int(matched.group(1)) * _DURATION_UNITS[matched.group(2)])
 
 

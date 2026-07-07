@@ -74,5 +74,23 @@ Merge conventions:
 - **Manual deploy / config reload**: Actions → Deploy → Run workflow (pick the branch)
 - **Rotate a token**: update the environment secret, re-run Deploy
 - **Switch calendar provider** (e.g. after a staleness alert, ADR 0014): set the `CALENDAR_PROVIDER` environment variable to `football-data-org`, re-run Deploy; requires the repo-level `FOOTBALL_DATA_API_KEY` secret to already be set
-- **DB backup** (prod): `docker run --rm -v fantaformazionibot_bot-data:/data -v $PWD:/backup alpine cp /data/fantaformazionibot.db /backup/` — losing it only loses sent-reminder markers
+- **DB backup** (prod): `docker run --rm -v fantaformazionibot_bot-data:/data -v $PWD:/backup alpine cp /data/fantaformazionibot.db /backup/` — losing it loses user/group `subscriptions` (everyone who ran `/promemoria_on` would need to redo it) and `sent_reminders` markers; `matchdays` regenerates from the calendar feed
 - **Runtime errors** are sent by the bot itself to the environment's `DEBUG_CHAT_ID`
+
+## Migrating to a new VM
+
+The current VM is `VM.Standard.E2.1.Micro` (Always Free); `VM.Standard.A1.Flex` (ARM, 6+ GB, also Always Free) is preferred when Oracle has capacity, which is intermittent — retrying VM creation is the only way to find out. The image is already multi-arch (amd64+arm64, ADR 0009), so no build changes are needed either way.
+
+1. **Create the new VM** in the Oracle Cloud console (Ubuntu LTS, public IP, your personal SSH public key). Oracle's E2.1.Micro and A1.Flex Always Free quotas are separate pools, so the old VM can keep running during the migration (zero-downtime cutover).
+2. **Install Docker and add swap** — same commands as [one-time VM setup](#one-time-vm-setup-manual) above.
+3. **Authorize the existing deploy key** on the new VM (reuse the same key pair, no new `SSH_KEY` secret needed):
+   ```bash
+   ssh-copy-id -f -i ~/.ssh/fantabot_deploy.pub ubuntu@<NEW_VM_IP>
+   ```
+4. **Back up the DB on the old VM**, for each instance you care about preserving (at minimum prod, since it may hold real user/group subscriptions — dev's are just test data). Use the [DB backup](#operations) command with the matching volume name (`fantaformazionibot_bot-data` for prod, `fantaformazionibot-dev_bot-data` for dev). Losing `subscriptions` silently unsubscribes every user/group that ran `/promemoria_on` — this is the one table worth carrying over; `matchdays` regenerates from the calendar feed and losing `sent_reminders` only risks one duplicate reminder.
+5. **Update the `SSH_HOST` secret** (repository-level) with the new IP.
+6. **Re-run Deploy for both branches** (Actions → Deploy → Run workflow, once for `dev`, once for `main`). The pipeline creates the app directories, `compose.yaml` and `.env` from scratch, and the first `docker compose up -d` creates fresh empty volumes on the new VM.
+7. **Restore the DB** on the new VM: stop the container (`docker compose stop` in the app directory), copy the backed-up file into the new volume (reverse of the backup command: `docker run --rm -v <volume>:/data -v $PWD:/backup alpine cp /backup/fantaformazionibot.db /data/`), then `docker compose start`.
+8. **Verify** both bots on the new VM (`docker compose logs -f` in each app directory, and check `/promemoria` reflects a previously-known subscription) before decommissioning anything.
+9. **Terminate the old VM** in the Oracle console once confirmed.
+10. **Update the IP** recorded in `docs/HANDOFF.md`.
