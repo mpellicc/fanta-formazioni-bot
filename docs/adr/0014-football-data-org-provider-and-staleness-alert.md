@@ -112,9 +112,15 @@ signal can never silently swap the data source the whole system trusts.
   one more module, one more `case` in the factory — unchanged from ADR 0007.
 - `season_year` becomes shared code in `calendar/base.py` instead of
   fixturedownload-specific.
-- Switching to football-data.org in an emergency requires: obtain a free API
-  key, set `CALENDAR_PROVIDER=football-data-org` and `FOOTBALL_DATA_API_KEY`
-  on the relevant GitHub environment, redeploy (ADR 0010).
+- Switching to football-data.org in an emergency requires: set the
+  per-environment `CALENDAR_PROVIDER` variable to `football-data-org` on the
+  relevant GitHub environment, redeploy (ADR 0010). `FOOTBALL_DATA_API_KEY` is
+  a **repository-level** secret, not per-environment: it's one football-data.org
+  account/key shared by both bots, same reasoning as `SSH_HOST`/`SSH_USER`/`SSH_KEY`
+  (one shared resource, not per-environment config that happens to coincide).
+  `deploy.yml` writes both into the generated `.env`, defaulting
+  `CALENDAR_PROVIDER` to `fixturedownload` when the variable is unset so
+  existing deployments are unaffected.
 - The staleness alert only covers the one failure mode we've actually seen
   (placeholder kickoff close to deadline); it says nothing about other ways
   a provider could misbehave.
