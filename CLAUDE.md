@@ -11,14 +11,14 @@ uv run ruff check            # lint
 uv run ruff format           # format (--check in CI)
 uv run mypy src              # strict type checking
 uv run python -m fantaformazionibot   # run the bot (needs .env, see env.example)
-docker build .               # container build (linux/arm64 in CI)
+docker build .               # container build (multi-arch amd64+arm64 in CI)
 ```
 
 All four checks (ruff check, ruff format --check, mypy, pytest) must pass before considering work done.
 
 ## Where things are
 
-- `src/fantaformazionibot/` — the package (src layout). Modules: `config.py` (pydantic-settings), `calendar/` (provider protocol + fixturedownload CSV), `storage/repository.py` (all SQL, sqlite3+WAL), `reminders/planner.py` (pure scheduling logic) and `reminders/jobs.py` (PTB JobQueue wiring), `telegram/` (handlers, messages), `format.py` (Italian formatting).
+- `src/fantaformazionibot/` — the package (src layout). Modules: `config.py` (pydantic-settings), `calendar/` (provider protocol + fixturedownload/football-data.org implementations), `storage/repository.py` (all SQL, sqlite3+WAL), `reminders/planner.py` (pure scheduling logic) and `reminders/jobs.py` (PTB JobQueue wiring), `telegram/` (handlers, messages), `format.py` (Italian formatting).
 - `tests/` — pytest; pure logic (planner, CSV parsing, config parsing, formatting) is tested without network or Telegram.
 - `docs/ARCHITECTURE.md` — components, flows, DB schema, env vars table.
 - `docs/adr/` — one ADR per architectural decision. **Read the relevant ADR before changing an architectural choice; add a new ADR when making one.**
@@ -42,4 +42,4 @@ All four checks (ruff check, ruff format --check, mypy, pytest) must pass before
 - **Deadline is derived**: `kickoff − DEADLINE_MARGIN` (config), never stored.
 - Keep `reminders/planner.py` pure (no I/O) so it stays trivially testable.
 - Config: only via `Settings` in `config.py`, passed through `bot_data["settings"]`; no module-level instances.
-- Roadmap features (per-user/group subscriptions, custom times) should extend the `subscriptions` table + add handlers — the reminder engine already iterates subscriptions (ADR 0008).
+- Per-user/group subscriptions and custom offsets (ADR 0012/0013) are done. Further roadmap features (e.g. user-owned channels, see `docs/HANDOFF.md`) should keep extending the `subscriptions` table + add handlers — the reminder engine already iterates subscriptions (ADR 0008) and needs no changes.

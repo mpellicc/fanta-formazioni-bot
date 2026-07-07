@@ -78,7 +78,7 @@ sent_reminders (chat_id INTEGER, round INTEGER, offset_seconds INTEGER,
                 UNIQUE(chat_id, round, offset_seconds))
 ```
 
-The DB is fully regenerable from the feed except `sent_reminders` (worst case after deletion: one duplicate reminder).
+`matchdays` fully regenerates from the calendar feed. `sent_reminders` is disposable (worst case after deletion: one duplicate reminder). `subscriptions` is **not** regenerable: it holds every user/group's `/promemoria_on` state and (since ADR 0013) custom `reminder_offsets` — back it up before anything destructive.
 
 ## Datetime policy
 
