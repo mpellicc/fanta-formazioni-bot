@@ -134,6 +134,15 @@ class Repository:
             origin=origin,
         )
 
+    def update_subscription_offsets(self, chat_id: int, offsets_seconds: Sequence[int]) -> bool:
+        """Update reminder_offsets on an existing subscription; report whether a row matched."""
+        with self._conn:
+            cursor = self._conn.execute(
+                "UPDATE subscriptions SET reminder_offsets = ? WHERE chat_id = ?",
+                (json.dumps(list(offsets_seconds)), chat_id),
+            )
+        return cursor.rowcount > 0
+
     def delete_user_subscription(self, chat_id: int) -> bool:
         """Delete the chat's subscription if user-owned; report whether a row was deleted.
 
