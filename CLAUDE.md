@@ -23,6 +23,15 @@ All four checks (ruff check, ruff format --check, mypy, pytest) must pass before
 - `docs/ARCHITECTURE.md` — components, flows, DB schema, env vars table.
 - `docs/adr/` — one ADR per architectural decision. **Read the relevant ADR before changing an architectural choice; add a new ADR when making one.**
 - `docs/DEPLOY.md` — Oracle VM setup + CI/CD (GHCR, SSH deploy).
+- `docs/HANDOFF.md` — session handoff: current state, infra details, roadmap, working style. Read it at session start; verify volatile facts (open PRs, deployed version) before relying on them.
+
+## Git workflow
+
+- **`dev` is the default branch** (dev bot deploys from it); `main` is production.
+- Feature branches → PR into `dev`, merged with **squash**. Releases: run the **Prepare release** workflow on `dev` (choose patch/minor/major), then merge the generated release PR `dev` → `main` with a **merge commit** (never squash to main — histories would diverge). See ADR 0011.
+- The release PR is authored by `github-actions[bot]`, so the owner can approve it himself (main requires 1 review).
+- Do NOT add `Co-Authored-By` trailers to commits or "Generated with" footers to PR bodies.
+- Never edit `.env`/`compose.yaml` on the VM: the deploy pipeline overwrites them from GitHub environment secrets/vars (ADR 0010). Config changes = update the GitHub value, re-run Deploy.
 
 ## Conventions and invariants
 
