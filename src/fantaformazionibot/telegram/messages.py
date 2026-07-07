@@ -33,12 +33,17 @@ def help_() -> str:
         "• /prossima_scadenza — data e ora della prossima scadenza e tempo rimanente\n"
         "• /promemoria_on — attiva i promemoria in questa chat\n"
         "• /promemoria_off — disattiva i promemoria in questa chat\n"
-        "• /promemoria — stato dei promemoria in questa chat\n"
-        "• /personalizza_orari — imposta orari personalizzati per i promemoria\n"
+        "• /promemoria — stato dei promemoria in questa chat, "
+        "con bottone per attivarli/disattivarli\n"
+        "• /personalizza_orari — scegli gli orari dei promemoria da una tastiera di caselle, "
+        "oppure passa direttamente gli orari come argomenti\n"
         "• /start — presentazione del bot\n"
         "• /help — questo messaggio\n\n"
+        "Nella tastiera di /personalizza_orari, il bottone <b>Personalizzati</b> ti fa scegliere "
+        "un orario non in lista: rispondi al messaggio che ti invio con un formato come "
+        "<code>2g,12h,10m</code> (unità m/h/g).\n\n"
         "Nei gruppi, /promemoria_on, /promemoria_off e /personalizza_orari "
-        "sono riservati agli amministratori.\n\n"
+        "sono riservati agli amministratori (anche i bottoni corrispondenti).\n\n"
         f"Per segnalazioni o suggerimenti scrivi a {MAINTAINER_USERNAME}."
     )
 
@@ -116,10 +121,33 @@ def offsets_usage(current: Sequence[timedelta] | None) -> str:
     )
     return (
         f"{status}"
-        f"Per impostare gli orari usa <code>{OFFSETS_USAGE_EXAMPLE}</code> "
-        "(unità s/m/h, tra 1 minuto e 7 giorni, massimo 10 orari).\n"
-        "Usa <code>/personalizza_orari default</code> per tornare agli orari predefiniti."
+        "Scegli gli orari toccando le caselle qui sotto, poi premi <b>Salva</b>.\n"
+        f"In alternativa usa <code>{OFFSETS_USAGE_EXAMPLE}</code> "
+        "(unità m/h/g, tra 1 minuto e 7 giorni, massimo 10 orari), oppure "
+        "<code>/personalizza_orari default</code> per tornare ai valori predefiniti."
     )
+
+
+def offsets_custom_prompt() -> str:
+    return (
+        "✏️ <b>Rispondi a questo messaggio</b> con gli orari che vuoi impostare, ad esempio "
+        f"<code>{OFFSETS_USAGE_EXAMPLE}</code> (unità m/h/g, tra 1 minuto e 7 giorni, "
+        "massimo 10 orari).\n\n"
+        "Usa /annulla oppure il bottone ⬅️ Indietro per tornare alle caselle predefinite "
+        "senza cambiare nulla."
+    )
+
+
+def offsets_custom_cancelled() -> str:
+    return "Operazione annullata: gli orari non sono cambiati."
+
+
+def offsets_custom_timeout() -> str:
+    return "Tempo scaduto: gli orari non sono cambiati. Usa /personalizza_orari per riprovare."
+
+
+def offsets_selection_empty() -> str:
+    return "Seleziona almeno un orario prima di salvare."
 
 
 def offsets_updated(reminder_offsets: Sequence[timedelta], *, newly_subscribed: bool) -> str:
@@ -149,7 +177,7 @@ def offsets_too_many(max_offsets: int) -> str:
 def offsets_invalid_token(token: str) -> str:
     return (
         f"'{html.escape(token)}' non è un orario valido. Usa un numero seguito da "
-        "s, m oppure h, ad esempio <code>24h</code> o <code>30m</code>."
+        "m, h oppure g, ad esempio <code>24h</code> o <code>2g</code>."
     )
 
 

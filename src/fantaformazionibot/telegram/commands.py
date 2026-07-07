@@ -1,16 +1,18 @@
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from telegram import Chat, Message, Update
 from telegram.constants import ChatMemberStatus, ChatType, ParseMode
 from telegram.ext import ContextTypes
 
+from fantaformazionibot.apptypes import BotApp
 from fantaformazionibot.config import Settings, parse_duration
 from fantaformazionibot.models import Subscription
 from fantaformazionibot.reminders import planner
 from fantaformazionibot.reminders.jobs import reschedule_reminders
 from fantaformazionibot.storage.repository import Repository
-from fantaformazionibot.telegram import messages
+from fantaformazionibot.telegram import keyboards, messages
 
 MAX_OFFSETS = 10
 MIN_OFFSET = timedelta(minutes=1)
@@ -27,11 +29,15 @@ class OffsetsParseError(ValueError):
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message is None:
+    if update.message is None or update.effective_chat is None:
         return
     settings: Settings = context.bot_data["settings"]
+    repository: Repository = context.bot_data["repository"]
+    subscribed = repository.get_subscription(update.effective_chat.id) is not None
     await update.message.reply_text(
-        messages.start(settings.reminder_offsets), parse_mode=ParseMode.HTML
+        messages.start(settings.reminder_offsets),
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboards.build_subscription_keyboard(subscribed=subscribed),
     )
 
 
@@ -60,6 +66,22 @@ async def next_deadline_command(update: Update, context: ContextTypes.DEFAULT_TY
     )
 
 
+async def user_may_manage_subscription(
+    user_id: int, chat: Chat, context: ContextTypes.DEFAULT_TYPE
+) -> bool:
+    """In groups, only admins may toggle reminders (ADR 0012); elsewhere anyone.
+
+    Shared by command handlers (via _sender_may_manage_subscription, which also
+    handles the anonymous-admin case) and callback handlers (telegram/callbacks.py),
+    where Telegram always reveals the real user on CallbackQuery.from_user even for
+    anonymous admins, so no sender_chat check is needed there.
+    """
+    if chat.type not in (ChatType.GROUP, ChatType.SUPERGROUP):
+        return True
+    member = await context.bot.get_chat_member(chat.id, user_id)
+    return member.status in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER)
+
+
 async def _sender_may_manage_subscription(
     message: Message, chat: Chat, context: ContextTypes.DEFAULT_TYPE
 ) -> bool:
@@ -71,12 +93,72 @@ async def _sender_may_manage_subscription(
         return True
     if message.from_user is None:
         return False
-    member = await context.bot.get_chat_member(chat.id, message.from_user.id)
-    return member.status in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER)
+    return await user_may_manage_subscription(message.from_user.id, chat, context)
 
 
 def _to_timedeltas(offsets_seconds: tuple[int, ...]) -> tuple[timedelta, ...]:
     return tuple(timedelta(seconds=seconds) for seconds in offsets_seconds)
+
+
+@dataclass(frozen=True, slots=True)
+class SubscribeResult:
+    already_subscribed: bool
+    reminder_offsets: tuple[timedelta, ...]
+
+
+def subscribe(
+    chat: Chat, settings: Settings, repository: Repository, application: BotApp
+) -> SubscribeResult:
+    """Core of /promemoria_on, shared with the sub:on callback (telegram/callbacks.py)."""
+    existing = repository.get_subscription(chat.id)
+    if existing is not None:
+        # Never overwrite offsets: custom times must survive a repeated subscribe.
+        return SubscribeResult(True, _to_timedeltas(existing.reminder_offsets))
+
+    repository.upsert_subscription(
+        Subscription(
+            chat_id=chat.id,
+            chat_type=chat.type,
+            reminder_offsets=tuple(
+                int(offset.total_seconds()) for offset in settings.reminder_offsets
+            ),
+            origin="user",
+        )
+    )
+    reschedule_reminders(application)
+    return SubscribeResult(False, settings.reminder_offsets)
+
+
+def unsubscribe(chat: Chat, repository: Repository, application: BotApp) -> bool:
+    """Core of /promemoria_off, shared with the sub:off callback. Returns whether it existed."""
+    deleted = repository.delete_user_subscription(chat.id)
+    if deleted:
+        reschedule_reminders(application)
+    return deleted
+
+
+def set_offsets(
+    chat: Chat,
+    offsets: tuple[timedelta, ...],
+    repository: Repository,
+    application: BotApp,
+) -> bool:
+    """Core of /personalizza_orari, shared with the offsets callbacks. Returns newly_subscribed."""
+    offsets_seconds = tuple(int(offset.total_seconds()) for offset in offsets)
+    existing = repository.get_subscription(chat.id)
+    if existing is not None:
+        repository.update_subscription_offsets(chat.id, offsets_seconds)
+    else:
+        repository.upsert_subscription(
+            Subscription(
+                chat_id=chat.id,
+                chat_type=chat.type,
+                reminder_offsets=offsets_seconds,
+                origin="user",
+            )
+        )
+    reschedule_reminders(application)
+    return existing is None
 
 
 def parse_offsets_args(args: Sequence[str]) -> tuple[timedelta, ...]:
@@ -114,29 +196,16 @@ async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     settings: Settings = context.bot_data["settings"]
     repository: Repository = context.bot_data["repository"]
+    result = subscribe(chat, settings, repository, context.application)
 
-    existing = repository.get_subscription(chat.id)
-    if existing is not None:
-        # Never overwrite offsets: custom times must survive a repeated /promemoria_on.
+    if result.already_subscribed:
         await update.message.reply_text(
-            messages.subscription_already_enabled(_to_timedeltas(existing.reminder_offsets)),
+            messages.subscription_already_enabled(result.reminder_offsets),
             parse_mode=ParseMode.HTML,
         )
         return
-
-    repository.upsert_subscription(
-        Subscription(
-            chat_id=chat.id,
-            chat_type=chat.type,
-            reminder_offsets=tuple(
-                int(offset.total_seconds()) for offset in settings.reminder_offsets
-            ),
-            origin="user",
-        )
-    )
-    reschedule_reminders(context.application)
     await update.message.reply_text(
-        messages.subscription_enabled(settings.reminder_offsets), parse_mode=ParseMode.HTML
+        messages.subscription_enabled(result.reminder_offsets), parse_mode=ParseMode.HTML
     )
 
 
@@ -149,13 +218,11 @@ async def unsubscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     repository: Repository = context.bot_data["repository"]
-    if not repository.delete_user_subscription(chat.id):
+    if not unsubscribe(chat, repository, context.application):
         await update.message.reply_text(
             messages.subscription_not_enabled(), parse_mode=ParseMode.HTML
         )
         return
-
-    reschedule_reminders(context.application)
     await update.message.reply_text(messages.subscription_disabled(), parse_mode=ParseMode.HTML)
 
 
@@ -166,16 +233,19 @@ async def subscription_status_command(update: Update, context: ContextTypes.DEFA
     subscription = repository.get_subscription(update.effective_chat.id)
     if subscription is None:
         await update.message.reply_text(
-            messages.subscription_not_enabled(), parse_mode=ParseMode.HTML
+            messages.subscription_not_enabled(),
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboards.build_subscription_keyboard(subscribed=False),
         )
         return
     await update.message.reply_text(
         messages.subscription_status(_to_timedeltas(subscription.reminder_offsets)),
         parse_mode=ParseMode.HTML,
+        reply_markup=keyboards.build_subscription_keyboard(subscribed=True),
     )
 
 
-_OFFSETS_ERROR_MESSAGES = {
+OFFSETS_ERROR_MESSAGES = {
     "empty": lambda token: messages.offsets_invalid_empty(),
     "too_many": lambda token: messages.offsets_too_many(MAX_OFFSETS),
     "invalid_token": lambda token: messages.offsets_invalid_token(token),
@@ -189,20 +259,28 @@ async def set_offsets_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     chat = update.effective_chat
     args = context.args or []
     repository: Repository = context.bot_data["repository"]
+    settings: Settings = context.bot_data["settings"]
 
     if not args:
         subscription = repository.get_subscription(chat.id)
         current = (
             _to_timedeltas(subscription.reminder_offsets) if subscription is not None else None
         )
-        await update.message.reply_text(messages.offsets_usage(current), parse_mode=ParseMode.HTML)
+        mask = keyboards.mask_from_offsets(
+            subscription.reminder_offsets
+            if subscription is not None
+            else tuple(int(offset.total_seconds()) for offset in settings.reminder_offsets)
+        )
+        await update.message.reply_text(
+            messages.offsets_usage(current),
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboards.build_offsets_keyboard(mask),
+        )
         return
 
     if not await _sender_may_manage_subscription(update.message, chat, context):
         await update.message.reply_text(messages.admin_only(), parse_mode=ParseMode.HTML)
         return
-
-    settings: Settings = context.bot_data["settings"]
 
     is_reset = len(args) == 1 and args[0].lower() == "default"
     if is_reset:
@@ -212,30 +290,17 @@ async def set_offsets_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             offsets = parse_offsets_args(args)
         except OffsetsParseError as exc:
             await update.message.reply_text(
-                _OFFSETS_ERROR_MESSAGES[exc.reason](exc.token), parse_mode=ParseMode.HTML
+                OFFSETS_ERROR_MESSAGES[exc.reason](exc.token), parse_mode=ParseMode.HTML
             )
             return
 
-    offsets_seconds = tuple(int(offset.total_seconds()) for offset in offsets)
-    existing_subscription = repository.get_subscription(chat.id)
-    if existing_subscription is not None:
-        repository.update_subscription_offsets(chat.id, offsets_seconds)
-    else:
-        repository.upsert_subscription(
-            Subscription(
-                chat_id=chat.id,
-                chat_type=chat.type,
-                reminder_offsets=offsets_seconds,
-                origin="user",
-            )
-        )
-    reschedule_reminders(context.application)
+    newly_subscribed = set_offsets(chat, offsets, repository, context.application)
 
     if is_reset:
         await update.message.reply_text(messages.offsets_reset(offsets), parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(
-            messages.offsets_updated(offsets, newly_subscribed=existing_subscription is None),
+            messages.offsets_updated(offsets, newly_subscribed=newly_subscribed),
             parse_mode=ParseMode.HTML,
         )
 
