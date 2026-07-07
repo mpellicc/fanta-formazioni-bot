@@ -40,6 +40,7 @@ Everything else (app directories, compose file, env files) is created by the dep
 | `SSH_HOST` | VM public IP |
 | `SSH_USER` | VM user (e.g. `ubuntu`) |
 | `SSH_KEY` | Deploy private key |
+| `FOOTBALL_DATA_API_KEY` | football-data.org API key (ADR 0014) — one account/key shared by both bots, not per-environment config |
 
 **Per-environment** (Settings → Environments → `production` / `development`):
 
@@ -48,6 +49,7 @@ Everything else (app directories, compose file, env files) is created by the dep
 | `BOT_TOKEN` | secret | Bot token from BotFather (separate bot per environment — polling forbids sharing) |
 | `CHANNEL_CHAT_ID` | variable | Chat receiving reminders (prod: the channel; dev: the debug chat) |
 | `DEBUG_CHAT_ID` | variable | Chat receiving error reports |
+| `CALENDAR_PROVIDER` | variable | `fixturedownload` (default if unset) or `football-data-org` (ADR 0014) — settable independently per environment |
 
 ## Workflows
 
@@ -60,10 +62,17 @@ Everything else (app directories, compose file, env files) is created by the dep
 
 Releases are versioned via the **Prepare release** workflow (ADR 0011): Actions → Prepare release → run on `dev` choosing patch/minor/major. It bumps `pyproject.toml`, commits `Release vX.Y.Z` to `dev`, and opens the release PR. Merging it deploys production, tags the image (`:X.Y.Z` + `:latest`), creates the git tag `vX.Y.Z`, and publishes the GitHub Release with auto-generated notes.
 
+Merge conventions:
+
+- PRs into `dev`: **squash merge** (one commit per feature).
+- Release PRs into `main`: **merge commit** — never squash, or `dev` and `main` histories diverge and later release PRs show phantom conflicts.
+- `main` requires one approving review. Release PRs are authored by `github-actions[bot]`, so the repository owner can approve them himself; the release PR shows no CI checks (PRs opened with `GITHUB_TOKEN` don't trigger workflows) — the same code already passed CI on `dev`.
+
 ## Operations
 
 - **Logs**: `ssh <vm>` then `docker compose logs -f` in `~/fantaformazionibot` (prod) or `~/fantaformazionibot-dev` (dev)
 - **Manual deploy / config reload**: Actions → Deploy → Run workflow (pick the branch)
 - **Rotate a token**: update the environment secret, re-run Deploy
+- **Switch calendar provider** (e.g. after a staleness alert, ADR 0014): set the `CALENDAR_PROVIDER` environment variable to `football-data-org`, re-run Deploy; requires the repo-level `FOOTBALL_DATA_API_KEY` secret to already be set
 - **DB backup** (prod): `docker run --rm -v fantaformazionibot_bot-data:/data -v $PWD:/backup alpine cp /data/fantaformazionibot.db /backup/` — losing it only loses sent-reminder markers
 - **Runtime errors** are sent by the bot itself to the environment's `DEBUG_CHAT_ID`

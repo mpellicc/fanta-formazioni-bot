@@ -1,7 +1,8 @@
 """JobQueue wiring: calendar refresh and exact-time reminder jobs. See ADR 0005."""
 
 import logging
-from datetime import UTC, datetime
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
@@ -9,7 +10,7 @@ from telegram.ext import ContextTypes
 from fantaformazionibot.apptypes import BotApp
 from fantaformazionibot.calendar.base import CalendarProvider
 from fantaformazionibot.config import Settings
-from fantaformazionibot.models import PlannedReminder
+from fantaformazionibot.models import Matchday, PlannedReminder
 from fantaformazionibot.reminders import planner
 from fantaformazionibot.storage.repository import Repository
 from fantaformazionibot.telegram import messages
@@ -17,6 +18,7 @@ from fantaformazionibot.telegram import messages
 logger = logging.getLogger(__name__)
 
 REMINDER_JOB_PREFIX = "reminder:"
+STALE_KICKOFF_THRESHOLD = timedelta(days=3)
 
 
 async def refresh_calendar_job(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -37,7 +39,35 @@ async def refresh_calendar(application: BotApp) -> None:
         repository.upsert_matchdays(matchdays)
         logger.info("Calendar refreshed: %d matchdays", len(matchdays))
 
+    await _alert_if_stale(application, repository.get_matchdays())
     reschedule_reminders(application)
+
+
+async def _alert_if_stale(application: BotApp, matchdays: Sequence[Matchday]) -> None:
+    """Warn the debug chat if the next matchday's kickoff still looks like a placeholder.
+
+    See ADR 0014. No dedup: re-runs on every refresh and re-alerts while the
+    condition holds, since this only reaches a private debug chat once a day.
+    """
+    settings: Settings = application.bot_data["settings"]
+    stale = planner.stale_matchday(
+        matchdays, settings.deadline_margin, datetime.now(UTC), STALE_KICKOFF_THRESHOLD
+    )
+    if stale is None:
+        return
+
+    logger.warning("Matchday %d still has a placeholder kickoff close to its deadline", stale.round)
+    try:
+        await application.bot.send_message(
+            chat_id=settings.debug_chat_id,
+            text=(
+                f"⚠️ Matchday {stale.round} still has a placeholder kickoff (00:00 UTC) "
+                f"with its deadline less than {STALE_KICKOFF_THRESHOLD.days} days away. "
+                "fixturedownload may not have updated yet; consider switching CALENDAR_PROVIDER."
+            ),
+        )
+    except Exception:
+        logger.exception("Failed to send staleness alert to the debug chat")
 
 
 def reschedule_reminders(application: BotApp) -> None:

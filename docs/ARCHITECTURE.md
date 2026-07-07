@@ -13,15 +13,17 @@ src/fantaformazionibot/
   config.py              Settings (pydantic-settings): env parsing/validation, duration parsing
   models.py              Matchday (round, kickoff UTC), Subscription, PlannedReminder
   calendar/
-    base.py              CalendarProvider protocol + factory (CALENDAR_PROVIDER)
+    base.py              CalendarProvider protocol + factory (CALENDAR_PROVIDER) + season_year
     fixturedownload.py   httpx download of the UTC CSV + pure parse function
+    football_data_org.py httpx call to the football-data.org API + pure parse function (ADR 0014)
   storage/
     repository.py        all SQL (sqlite3, WAL); schema created at startup
   reminders/
     planner.py           pure logic: deadline = kickoff − margin, reminder times, filtering
     jobs.py              PTB jobs: daily calendar refresh, reminder send, (re)scheduling
   telegram/
-    commands.py          /start /help /prossima_scadenza + unknown-command fallback
+    commands.py          /start /help /prossima_scadenza /promemoria_on /promemoria_off
+                         /promemoria /personalizza_orari + unknown-command fallback
     errors.py            error handler → DEBUG_CHAT_ID
     messages.py          all user-facing Italian texts (HTML parse mode)
   format.py              Italian date/duration formatting (static month names, zoneinfo)
@@ -41,7 +43,19 @@ src/fantaformazionibot/
 
 ### Daily calendar refresh
 
-`refresh_calendar_job` → provider fetch → upsert matchdays → drop all scheduled reminder jobs (name prefix `reminder:`) → recompute plan → schedule again. Kickoff changes during the season are picked up here.
+`refresh_calendar_job` → provider fetch → upsert matchdays → staleness check → drop all scheduled reminder jobs (name prefix `reminder:`) → recompute plan → schedule again. Kickoff changes during the season are picked up here.
+
+The staleness check (ADR 0014) looks at the next upcoming matchday: if its deadline is under 3 days away and its kickoff is still an all-zero UTC placeholder, it sends a warning to `DEBUG_CHAT_ID` suggesting a review of `CALENDAR_PROVIDER`. It re-fires on every refresh while the condition holds; switching providers is still a manual env change + redeploy.
+
+### Subscribing a chat
+
+`/promemoria_on` inserts a `subscriptions` row for the current chat (`origin='user'`,
+default offsets from `REMINDER_OFFSETS`) and triggers `reschedule_reminders`;
+`/promemoria_off` deletes it (only `origin='user'` rows) and reschedules;
+`/promemoria` shows the current state. In groups, on/off are admin-only (ADR 0012).
+`/personalizza_orari` updates `reminder_offsets` on the chat's row (auto-subscribing
+if none exists) or resets it to the configured default with `default`; same
+admin-only rule in groups (ADR 0013).
 
 ### Sending a reminder
 
@@ -84,8 +98,9 @@ Telegram messages use **HTML parse mode** (not MarkdownV2): static texts need no
 | `TOKEN` | yes | — | Bot token from BotFather |
 | `CHANNEL_CHAT_ID` | yes | — | Chat id of the reminder channel |
 | `DEBUG_CHAT_ID` | yes | — | Chat id receiving error reports |
-| `CALENDAR_PROVIDER` | no | `fixturedownload` | Calendar source (ADR 0007) |
-| `CALENDAR_URL` | no | fixturedownload UTC CSV | Feed URL, supports `{season_year}` |
+| `CALENDAR_PROVIDER` | no | `fixturedownload` | Calendar source: `fixturedownload` or `football-data-org` (ADR 0007/0014) |
+| `CALENDAR_URL` | no | fixturedownload UTC CSV | Feed URL, supports `{season_year}` (fixturedownload only) |
+| `FOOTBALL_DATA_API_KEY` | only if `CALENDAR_PROVIDER=football-data-org` | — | API key for football-data.org (ADR 0014) |
 | `CALENDAR_REFRESH_TIME` | no | `02:00` | Daily refresh time (Europe/Rome, `HH:MM`) |
 | `DATABASE_PATH` | no | `fantaformazionibot.db` | SQLite file path |
 | `DEADLINE_MARGIN` | no | `5m` | Deadline = kickoff − margin (ADR 0006) |

@@ -21,6 +21,28 @@ def next_deadline(
     return min(upcoming, key=lambda pair: pair[1])
 
 
+def is_placeholder_kickoff(kickoff: datetime) -> bool:
+    """fixturedownload marks not-yet-confirmed kickoffs with an all-zero UTC time."""
+    return (kickoff.hour, kickoff.minute, kickoff.second) == (0, 0, 0)
+
+
+def stale_matchday(
+    matchdays: Sequence[Matchday], margin: timedelta, now: datetime, threshold: timedelta
+) -> Matchday | None:
+    """The next matchday, if its deadline is imminent but its kickoff still looks unset.
+
+    See ADR 0014: fixturedownload exposes no reliable "last updated" signal, so
+    this is a content-based heuristic on the one placeholder pattern observed.
+    """
+    upcoming = next_deadline(matchdays, margin, now)
+    if upcoming is None:
+        return None
+    matchday, deadline = upcoming
+    if deadline - now <= threshold and is_placeholder_kickoff(matchday.kickoff):
+        return matchday
+    return None
+
+
 def plan_reminders(
     matchdays: Sequence[Matchday],
     subscriptions: Sequence[Subscription],

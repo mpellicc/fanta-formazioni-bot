@@ -2,13 +2,19 @@
 
 A Telegram bot that reminds you to set your **Fantacalcio** lineup before each Serie A matchday deadline.
 
-Reminders are posted to the [@fantaformazionireminders](https://t.me/fantaformazionireminders) channel at configurable times before the deadline (by default 24 hours, 1 hour, and 5 minutes). The deadline is the kickoff of the round's first match minus a configurable safety margin (5 minutes by default).
+Reminders are posted to the [@fantaformazionireminders](https://t.me/fantaformazionireminders) channel by default, and can also be subscribed to directly in any private chat or group. Reminders fire at configurable times before the deadline (by default 24 hours, 1 hour, and 5 minutes, customizable per chat). The deadline is the kickoff of the round's first match minus a configurable safety margin (5 minutes by default).
 
 ## Commands
 
 - `/start` — introduction to the bot
 - `/prossima_scadenza` — next matchday's deadline and remaining time
+- `/promemoria_on` — subscribe to reminders in the current chat
+- `/promemoria_off` — unsubscribe from reminders in the current chat
+- `/promemoria` — show whether reminders are active and with which offsets
+- `/personalizza_orari` — set custom reminder offsets for the current chat (or `/personalizza_orari default` to reset)
 - `/help` — list of commands
+
+In groups, `/promemoria_on`, `/promemoria_off`, and `/personalizza_orari` are restricted to group administrators.
 
 ## How it works
 

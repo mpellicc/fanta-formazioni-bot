@@ -46,3 +46,52 @@ def test_prune_keeps_current_env_channel(tmp_path: Path) -> None:
     repository.prune_channel_subscriptions(keep_chat_id=ENV_CHANNEL.chat_id)
 
     assert repository.get_subscriptions() == [ENV_CHANNEL]
+
+
+def test_get_subscription_found_and_missing(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.upsert_subscription(USER_PRIVATE)
+
+    assert repository.get_subscription(USER_PRIVATE.chat_id) == USER_PRIVATE
+    assert repository.get_subscription(12345) is None
+
+
+def test_delete_user_subscription_removes_user_row(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.upsert_subscription(USER_PRIVATE)
+
+    assert repository.delete_user_subscription(USER_PRIVATE.chat_id) is True
+    assert repository.get_subscription(USER_PRIVATE.chat_id) is None
+
+
+def test_delete_user_subscription_leaves_env_row(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.upsert_subscription(ENV_CHANNEL)
+
+    assert repository.delete_user_subscription(ENV_CHANNEL.chat_id) is False
+    assert repository.get_subscription(ENV_CHANNEL.chat_id) == ENV_CHANNEL
+
+
+def test_delete_user_subscription_missing_row(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+
+    assert repository.delete_user_subscription(12345) is False
+
+
+def test_update_subscription_offsets_updates_existing_row(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.upsert_subscription(USER_PRIVATE)
+
+    assert repository.update_subscription_offsets(USER_PRIVATE.chat_id, (86400, 3600)) is True
+
+    updated = repository.get_subscription(USER_PRIVATE.chat_id)
+    assert updated is not None
+    assert updated.reminder_offsets == (86400, 3600)
+    assert updated.origin == USER_PRIVATE.origin
+    assert updated.chat_type == USER_PRIVATE.chat_type
+
+
+def test_update_subscription_offsets_missing_row(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+
+    assert repository.update_subscription_offsets(12345, (3600,)) is False
