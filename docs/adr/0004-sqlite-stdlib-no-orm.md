@@ -21,3 +21,7 @@ Use the stdlib `sqlite3` module with WAL mode, wrapped in a thin repository modu
 
 - The repository module is the only place with SQL; swapping storage later means reimplementing one file.
 - Schema is created idempotently at startup (`CREATE TABLE IF NOT EXISTS`); no migration framework. Schema changes are applied by hand or by regenerating the DB (all data is derivable from the feed except sent-reminder markers).
+
+## Amendment (2026-07-07): subscriptions are not derivable
+
+ADR 0008 added the `subscriptions` table, which holds user/group `/promemoria_on` state and (ADR 0013) custom `reminder_offsets` — data with no external source, unlike `matchdays`. "Regenerating the DB" above no longer holds for it: losing `subscriptions` silently unsubscribes everyone, so it must be backed up before any destructive operation (VM migration, manual schema surgery). See `docs/DEPLOY.md`'s DB backup command.
