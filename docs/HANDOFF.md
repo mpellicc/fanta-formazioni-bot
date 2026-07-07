@@ -37,6 +37,11 @@
 2. **Orari di notifica personalizzabili per subscription** — il campo `reminder_offsets` è già per-riga; serve solo l'interfaccia (comandi) per impostarli.
 3. Eventuale provider API strutturata in alternativa a fixturedownload (ADR 0007: nuova classe + entry nella factory + `CALENDAR_PROVIDER`).
 
+**Idee UX per una futura v2.0 (valutate 2026-07-07, non pianificate):**
+- **Inline keyboard (bottoni callback)** al posto dei soli comandi: `/start` in privato con bottone "Attiva promemoria", `/promemoria` con toggle on/off, scelta degli orari a bottoni (naturale insieme alla feature 2). È solo codice PTB (`InlineKeyboardMarkup` + `CallbackQueryHandler`), nessun setting BotFather.
+- **Inline Mode** (setting BotFather + `InlineQueryHandler`): `@bot` in una chat qualsiasi per condividere la card della prossima scadenza senza aggiungere il bot alla chat.
+- Setting BotFather verificati e da lasciare così: **Allow Groups ON**, **Group Privacy ON** (il bot vede solo i /comandi nei gruppi — non disattivare); Admin Rights / Guard / Secretary / Guest / Bot-to-Bot / Threads non servono al caso d'uso. "Restrict bot usage" solo sul bot dev (ridondante con `ALLOWED_CHAT_IDS`, ma difesa in più).
+
 **Operativo/monitoraggio:**
 - La stagione 2026-27 inizia il **22 agosto 2026**: il primo reminder reale parte ~21 agosto. Verificare che arrivi sul canale (finora testati solo i comandi, non un reminder "live" in prod).
 - Gli orari delle giornate lontane nel CSV sono placeholder (es. 00:00): si sistemano da soli col refresh giornaliero delle 02:00.
