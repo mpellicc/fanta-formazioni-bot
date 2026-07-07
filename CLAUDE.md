@@ -23,6 +23,7 @@ All four checks (ruff check, ruff format --check, mypy, pytest) must pass before
 - `docs/ARCHITECTURE.md` — components, flows, DB schema, env vars table.
 - `docs/adr/` — one ADR per architectural decision. **Read the relevant ADR before changing an architectural choice; add a new ADR when making one.**
 - `docs/DEPLOY.md` — Oracle VM setup + CI/CD (GHCR, SSH deploy).
+- `docs/HANDOFF.md` — session handoff: current state, infra details, roadmap, working style. Read it at session start; verify volatile facts (open PRs, deployed version) before relying on them.
 
 ## Git workflow
 
