@@ -1,6 +1,6 @@
 [project]
 name = "fantaformazionibot"
-version = "0.10.0"
+version = "0.11.0"
 description = "Telegram bot that reminds you to set your Fantacalcio lineup"
 readme = "README.md"
 license = "GPL-3.0-or-later"
