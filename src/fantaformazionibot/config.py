@@ -1,5 +1,6 @@
 import re
 from datetime import time, timedelta
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
 from zoneinfo import ZoneInfo
@@ -8,6 +9,14 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 TIMEZONE = ZoneInfo("Europe/Rome")
+
+
+class CalendarProvider(StrEnum):
+    """Source of the season's matchdays, selected via CALENDAR_PROVIDER. See ADR 0007/0014."""
+
+    FIXTUREDOWNLOAD = "fixturedownload"
+    FOOTBALL_DATA_ORG = "football-data-org"
+
 
 _DURATION_RE = re.compile(r"^\s*(\d+)\s*([smh])\s*$")
 _DURATION_UNITS = {"s": 1, "m": 60, "h": 3600}
@@ -28,8 +37,10 @@ class Settings(BaseSettings):
     channel_chat_id: int
     debug_chat_id: int
 
-    calendar_provider: str = "fixturedownload"
+    calendar_provider: CalendarProvider = CalendarProvider.FIXTUREDOWNLOAD
     calendar_url: str = "https://fixturedownload.com/download/serie-a-{season_year}-UTC.csv"
+    # Only required when calendar_provider is FOOTBALL_DATA_ORG.
+    football_data_api_key: str | None = None
     calendar_refresh_time: time = time(hour=2, minute=0)  # Europe/Rome
     database_path: Path = Path("fantaformazionibot.db")
     deadline_margin: timedelta = timedelta(minutes=5)

@@ -13,8 +13,9 @@ src/fantaformazionibot/
   config.py              Settings (pydantic-settings): env parsing/validation, duration parsing
   models.py              Matchday (round, kickoff UTC), Subscription, PlannedReminder
   calendar/
-    base.py              CalendarProvider protocol + factory (CALENDAR_PROVIDER)
+    base.py              CalendarProvider protocol + factory (CALENDAR_PROVIDER) + season_year
     fixturedownload.py   httpx download of the UTC CSV + pure parse function
+    football_data_org.py httpx call to the football-data.org API + pure parse function (ADR 0014)
   storage/
     repository.py        all SQL (sqlite3, WAL); schema created at startup
   reminders/
@@ -42,7 +43,9 @@ src/fantaformazionibot/
 
 ### Daily calendar refresh
 
-`refresh_calendar_job` → provider fetch → upsert matchdays → drop all scheduled reminder jobs (name prefix `reminder:`) → recompute plan → schedule again. Kickoff changes during the season are picked up here.
+`refresh_calendar_job` → provider fetch → upsert matchdays → staleness check → drop all scheduled reminder jobs (name prefix `reminder:`) → recompute plan → schedule again. Kickoff changes during the season are picked up here.
+
+The staleness check (ADR 0014) looks at the next upcoming matchday: if its deadline is under 3 days away and its kickoff is still an all-zero UTC placeholder, it sends a warning to `DEBUG_CHAT_ID` suggesting a review of `CALENDAR_PROVIDER`. It re-fires on every refresh while the condition holds; switching providers is still a manual env change + redeploy.
 
 ### Subscribing a chat
 
@@ -95,8 +98,9 @@ Telegram messages use **HTML parse mode** (not MarkdownV2): static texts need no
 | `TOKEN` | yes | — | Bot token from BotFather |
 | `CHANNEL_CHAT_ID` | yes | — | Chat id of the reminder channel |
 | `DEBUG_CHAT_ID` | yes | — | Chat id receiving error reports |
-| `CALENDAR_PROVIDER` | no | `fixturedownload` | Calendar source (ADR 0007) |
-| `CALENDAR_URL` | no | fixturedownload UTC CSV | Feed URL, supports `{season_year}` |
+| `CALENDAR_PROVIDER` | no | `fixturedownload` | Calendar source: `fixturedownload` or `football-data-org` (ADR 0007/0014) |
+| `CALENDAR_URL` | no | fixturedownload UTC CSV | Feed URL, supports `{season_year}` (fixturedownload only) |
+| `FOOTBALL_DATA_API_KEY` | only if `CALENDAR_PROVIDER=football-data-org` | — | API key for football-data.org (ADR 0014) |
 | `CALENDAR_REFRESH_TIME` | no | `02:00` | Daily refresh time (Europe/Rome, `HH:MM`) |
 | `DATABASE_PATH` | no | `fantaformazionibot.db` | SQLite file path |
 | `DEADLINE_MARGIN` | no | `5m` | Deadline = kickoff − margin (ADR 0006) |

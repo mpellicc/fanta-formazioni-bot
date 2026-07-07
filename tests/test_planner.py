@@ -56,3 +56,36 @@ def test_plan_reminders_multiple_subscriptions() -> None:
         (-100, 300),
         (42, 600),
     }
+
+
+def test_is_placeholder_kickoff() -> None:
+    assert planner.is_placeholder_kickoff(datetime(2025, 8, 17, 0, 0, 0, tzinfo=UTC)) is True
+    assert planner.is_placeholder_kickoff(datetime(2025, 8, 17, 16, 30, tzinfo=UTC)) is False
+
+
+def test_stale_matchday_flags_imminent_placeholder() -> None:
+    placeholder_round = Matchday(round=3, kickoff=datetime(2025, 8, 30, 0, 0, tzinfo=UTC))
+    now = datetime(2025, 8, 28, tzinfo=UTC)  # 2 days before deadline
+
+    stale = planner.stale_matchday([placeholder_round], MARGIN, now, timedelta(days=3))
+
+    assert stale == placeholder_round
+
+
+def test_stale_matchday_ignores_distant_placeholder() -> None:
+    placeholder_round = Matchday(round=3, kickoff=datetime(2025, 9, 30, 0, 0, tzinfo=UTC))
+    now = datetime(2025, 8, 28, tzinfo=UTC)  # weeks before deadline
+
+    assert planner.stale_matchday([placeholder_round], MARGIN, now, timedelta(days=3)) is None
+
+
+def test_stale_matchday_ignores_confirmed_kickoff() -> None:
+    now = datetime(2025, 8, 15, tzinfo=UTC)  # 2 days before round 1's real deadline
+
+    assert planner.stale_matchday([ROUND_1], MARGIN, now, timedelta(days=3)) is None
+
+
+def test_stale_matchday_none_when_no_upcoming_round() -> None:
+    now = datetime(2026, 6, 1, tzinfo=UTC)
+
+    assert planner.stale_matchday([ROUND_1, ROUND_2], MARGIN, now, timedelta(days=3)) is None

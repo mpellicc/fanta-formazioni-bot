@@ -1,7 +1,14 @@
+from datetime import datetime
 from typing import Protocol
 
+from fantaformazionibot.config import CalendarProvider as CalendarProviderName
 from fantaformazionibot.config import Settings
 from fantaformazionibot.models import Matchday
+
+
+def season_year(now: datetime) -> int:
+    """Serie A seasons are labelled by their starting year; rollover on July 1st."""
+    return now.year if now.month >= 7 else now.year - 1
 
 
 class CalendarProvider(Protocol):
@@ -12,9 +19,14 @@ class CalendarProvider(Protocol):
 
 def create_provider(settings: Settings) -> CalendarProvider:
     from fantaformazionibot.calendar.fixturedownload import FixtureDownloadProvider
+    from fantaformazionibot.calendar.football_data_org import FootballDataOrgProvider
 
     match settings.calendar_provider:
-        case "fixturedownload":
+        case CalendarProviderName.FIXTUREDOWNLOAD:
             return FixtureDownloadProvider(settings.calendar_url)
-        case unknown:
-            raise ValueError(f"unknown CALENDAR_PROVIDER {unknown!r}")
+        case CalendarProviderName.FOOTBALL_DATA_ORG:
+            if not settings.football_data_api_key:
+                raise ValueError(
+                    "FOOTBALL_DATA_API_KEY is required when CALENDAR_PROVIDER=football-data-org"
+                )
+            return FootballDataOrgProvider(settings.football_data_api_key)

@@ -4,14 +4,10 @@ from datetime import UTC, datetime
 
 import httpx
 
+from fantaformazionibot.calendar.base import season_year
 from fantaformazionibot.models import Matchday
 
 _DATE_FORMAT = "%d/%m/%Y %H:%M"
-
-
-def season_year(now: datetime) -> int:
-    """Serie A seasons are labelled by their starting year; rollover on July 1st."""
-    return now.year if now.month >= 7 else now.year - 1
 
 
 def parse_matchdays(csv_text: str) -> list[Matchday]:
