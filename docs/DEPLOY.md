@@ -49,7 +49,8 @@ Everything else (app directories, compose file, env files) is created by the dep
 | `BOT_TOKEN` | secret | Bot token from BotFather (separate bot per environment — polling forbids sharing) |
 | `CHANNEL_CHAT_ID` | variable | Chat receiving reminders (prod: the channel; dev: the debug chat) |
 | `DEBUG_CHAT_ID` | variable | Chat receiving error reports |
-| `CALENDAR_PROVIDER` | variable | `fixturedownload` (default if unset) or `football-data-org` (ADR 0014) — settable independently per environment |
+| `CALENDAR_PROVIDER` | variable | `fixturedownload` (default if unset), `football-data-org` (ADR 0014) or `mock` (ADR 0016, **dev only — never set on `production`**) — settable independently per environment |
+| `MOCK_KICKOFF_OFFSET` | variable | Only used if `CALENDAR_PROVIDER=mock`; default `10m` if unset (ADR 0016) |
 
 ## Workflows
 
@@ -74,6 +75,7 @@ Merge conventions:
 - **Manual deploy / config reload**: Actions → Deploy → Run workflow (pick the branch)
 - **Rotate a token**: update the environment secret, re-run Deploy
 - **Switch calendar provider** (e.g. after a staleness alert, ADR 0014): set the `CALENDAR_PROVIDER` environment variable to `football-data-org`, re-run Deploy; requires the repo-level `FOOTBALL_DATA_API_KEY` secret to already be set
+- **Test a reminder end-to-end on the dev bot** (ADR 0016): on the `development` environment, set `CALENDAR_PROVIDER=mock` (optionally `MOCK_KICKOFF_OFFSET`), re-run Deploy. Then use `/personalizza_orari` on the chat under test to pick short custom offsets so the reminder actually fires within the window. Set `CALENDAR_PROVIDER` back to `fixturedownload` and redeploy when done — the next refresh restores round 1's real kickoff. **Never set `CALENDAR_PROVIDER=mock` on `production`.**
 - **DB backup** (prod): `docker run --rm -v fantaformazionibot_bot-data:/data -v $PWD:/backup alpine cp /data/fantaformazionibot.db /backup/` — losing it loses user/group `subscriptions` (everyone who ran `/promemoria_on` would need to redo it) and `sent_reminders` markers; `matchdays` regenerates from the calendar feed
 - **Runtime errors** are sent by the bot itself to the environment's `DEBUG_CHAT_ID`
 

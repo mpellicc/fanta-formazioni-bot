@@ -28,7 +28,9 @@ def _settings(**overrides: object) -> Settings:
 
 
 def test_settings_parses_compact_durations_from_env_strings() -> None:
-    settings = _settings(deadline_margin="10m", reminder_offsets="24h,90m,30s")
+    settings = _settings(
+        deadline_margin="10m", reminder_offsets="24h,90m,30s", mock_kickoff_offset="15m"
+    )
 
     assert settings.deadline_margin == timedelta(minutes=10)
     assert settings.reminder_offsets == (
@@ -36,6 +38,11 @@ def test_settings_parses_compact_durations_from_env_strings() -> None:
         timedelta(minutes=90),
         timedelta(seconds=30),
     )
+    assert settings.mock_kickoff_offset == timedelta(minutes=15)
+
+
+def test_settings_mock_kickoff_offset_default() -> None:
+    assert _settings().mock_kickoff_offset == timedelta(minutes=10)
 
 
 def test_settings_parses_allowed_chat_ids() -> None:
