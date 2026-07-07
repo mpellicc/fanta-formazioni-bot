@@ -33,16 +33,19 @@
 ## 3. Cosa c'è da fare e come
 
 **Roadmap funzionale (in ordine di priorità espressa da Matteo):**
-1. **Promemoria privati per utente e per gruppo** — estendere con handler di subscribe/unsubscribe; il motore già itera su `subscriptions` (ADR 0008), quindi: INSERT con `origin='user'` + comandi Telegram. Non toccare il pruning.
-2. **Orari di notifica personalizzabili per subscription** — il campo `reminder_offsets` è già per-riga; serve solo l'interfaccia (comandi) per impostarli.
+1. ✅ **Promemoria privati per utente e per gruppo** — fatto (PR #15, 2026-07-07, su dev; in prod alla prossima release): `/promemoria_on`, `/promemoria_off`, `/promemoria`; nei gruppi on/off sono solo per admin. Decisioni in **ADR 0012**.
+2. **Orari di notifica personalizzabili per subscription** ← **prossima feature** — il campo `reminder_offsets` è già per-riga; serve solo l'interfaccia (comandi) per impostarli. Vincolo già pronto (ADR 0012): `/promemoria_on` ripetuto non sovrascrive gli offset, quindi i valori custom sopravvivono.
 3. Eventuale provider API strutturata in alternativa a fixturedownload (ADR 0007: nuova classe + entry nella factory + `CALENDAR_PROVIDER`).
 
 **Idee UX per una futura v2.0 (valutate 2026-07-07, non pianificate):**
 - **Inline keyboard (bottoni callback)** al posto dei soli comandi: `/start` in privato con bottone "Attiva promemoria", `/promemoria` con toggle on/off, scelta degli orari a bottoni (naturale insieme alla feature 2). È solo codice PTB (`InlineKeyboardMarkup` + `CallbackQueryHandler`), nessun setting BotFather.
 - **Inline Mode** (setting BotFather + `InlineQueryHandler`): `@bot` in una chat qualsiasi per condividere la card della prossima scadenza senza aggiungere il bot alla chat.
-- Setting BotFather verificati e da lasciare così: **Allow Groups ON**, **Group Privacy ON** (il bot vede solo i /comandi nei gruppi — non disattivare); Admin Rights / Guard / Secretary / Guest / Bot-to-Bot / Threads non servono al caso d'uso. "Restrict bot usage" solo sul bot dev (ridondante con `ALLOWED_CHAT_IDS`, ma difesa in più).
+- **Canali di lega user-owned**: un utente aggiunge il bot come admin del proprio canale (setting BotFather "Channel Admin Rights" con solo *Post messages*) → un `ChatMemberHandler` su `my_chat_member` crea/cancella la subscription `origin='user'`, `chat_type='channel'`. Caso già previsto dall'amendment ADR 0008; è l'unica via per i canali, che non possono inviare comandi. Da decidere: iscrizione automatica o conferma del proprietario.
+- Setting BotFather verificati e da lasciare così: **Allow Groups ON**, **Group Privacy ON** (il bot vede solo i /comandi nei gruppi — non disattivare); Admin Rights / Guard / Secretary / Guest / Bot-to-Bot / Threads non servono al caso d'uso. "Restrict bot usage" solo sul bot dev (ridondante con `ALLOWED_CHAT_IDS`, ma difesa in più). Privacy Policy: oggi vale quella standard di Telegram; se il bot cresce, basterebbe una policy di tre righe (memorizziamo solo chat_id e orari).
+- Priorità indicativa v2.0: inline keyboard → Inline Mode → canali user-owned.
 
 **Operativo/monitoraggio:**
+- **BotFather, su entrambi i bot (dev e prod)**: lista comandi aggiornata con `promemoria_on`/`promemoria_off`/`promemoria`. Scope: on/off visibili solo in *Direct Messages* + *Group Administrators* (Group Chats OFF: i non-admin riceverebbero solo il rifiuto); `/promemoria` visibile ovunque. Gli scope regolano solo la visibilità nel menu, l'enforcement admin è nel codice. Nelle descrizioni non promettere "promemoria personalizzati" finché la feature 2 non esiste.
 - La stagione 2026-27 inizia il **22 agosto 2026**: il primo reminder reale parte ~21 agosto. Verificare che arrivi sul canale (finora testati solo i comandi, non un reminder "live" in prod).
 - Gli orari delle giornate lontane nel CSV sono placeholder (es. 00:00): si sistemano da soli col refresh giornaliero delle 02:00.
 - Tentare ogni tanto la migrazione a VM A1.Flex (gratis, 6+ GB). Procedura: nuova VM → step DEPLOY.md → aggiornare secret `SSH_HOST` → rilanciare i deploy.
@@ -54,4 +57,4 @@
 - **Niente `Co-Authored-By` nei commit né footer "Generated with" nelle PR.**
 - Prima di dichiarare finito: `uv run ruff check && uv run ruff format --check && uv run mypy src && uv run pytest` tutti verdi.
 
-**Stato al momento dell'handoff:** prod = v0.10.0 (release completa: deploy + tag + GitHub Release, tutto verificato); nessuna PR aperta, nessun problema noto.
+**Stato al momento dell'handoff (agg. 2026-07-07, sessione feature #1):** prod = v0.10.0; dev contiene in più la feature subscription utente/gruppo (PR #15 mergiata, bot dev deployato) non ancora rilasciata in prod. Nessuna PR aperta, nessun problema noto. Da fare quando si vuole portarla in prod: workflow Prepare release (minor) → merge della release PR.
