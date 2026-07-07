@@ -34,7 +34,7 @@
 
 **Roadmap funzionale (in ordine di priorità espressa da Matteo):**
 1. ✅ **Promemoria privati per utente e per gruppo** — fatto (PR #15, 2026-07-07, su dev; in prod alla prossima release): `/promemoria_on`, `/promemoria_off`, `/promemoria`; nei gruppi on/off sono solo per admin. Decisioni in **ADR 0012**.
-2. **Orari di notifica personalizzabili per subscription** ← **prossima feature** — il campo `reminder_offsets` è già per-riga; serve solo l'interfaccia (comandi) per impostarli. Vincolo già pronto (ADR 0012): `/promemoria_on` ripetuto non sovrascrive gli offset, quindi i valori custom sopravvivono.
+2. ✅ **Orari di notifica personalizzabili per subscription** — fatto (2026-07-07, branch `feature/custom-reminder-offsets`, non ancora mergiata): `/personalizza_orari [offset...|default]` aggiorna `reminder_offsets` sulla riga della chat corrente (auto-iscrive se assente); senza argomenti mostra gli orari attuali. Validazione: unità s/m/h, 1 minuto–7 giorni, max 10 offset. Admin-only nei gruppi come `/promemoria_on`. Decisioni in **ADR 0013**.
 3. Eventuale provider API strutturata in alternativa a fixturedownload (ADR 0007: nuova classe + entry nella factory + `CALENDAR_PROVIDER`).
 
 **Idee UX per una futura v2.0 (valutate 2026-07-07, non pianificate):**
@@ -45,7 +45,7 @@
 - Priorità indicativa v2.0: inline keyboard → Inline Mode → canali user-owned.
 
 **Operativo/monitoraggio:**
-- **BotFather, su entrambi i bot (dev e prod)**: lista comandi aggiornata con `promemoria_on`/`promemoria_off`/`promemoria`. Scope: on/off visibili solo in *Direct Messages* + *Group Administrators* (Group Chats OFF: i non-admin riceverebbero solo il rifiuto); `/promemoria` visibile ovunque. Gli scope regolano solo la visibilità nel menu, l'enforcement admin è nel codice. Nelle descrizioni non promettere "promemoria personalizzati" finché la feature 2 non esiste.
+- **BotFather, su entrambi i bot (dev e prod)**: lista comandi aggiornata con `promemoria_on`/`promemoria_off`/`promemoria`. Scope: on/off visibili solo in *Direct Messages* + *Group Administrators* (Group Chats OFF: i non-admin riceverebbero solo il rifiuto); `/promemoria` visibile ovunque. Gli scope regolano solo la visibilità nel menu, l'enforcement admin è nel codice. Da fare: aggiungere `personalizza_orari` alla lista con lo stesso scope di on/off (ADR 0013).
 - La stagione 2026-27 inizia il **22 agosto 2026**: il primo reminder reale parte ~21 agosto. Verificare che arrivi sul canale (finora testati solo i comandi, non un reminder "live" in prod).
 - Gli orari delle giornate lontane nel CSV sono placeholder (es. 00:00): si sistemano da soli col refresh giornaliero delle 02:00.
 - Tentare ogni tanto la migrazione a VM A1.Flex (gratis, 6+ GB). Procedura: nuova VM → step DEPLOY.md → aggiornare secret `SSH_HOST` → rilanciare i deploy.
@@ -57,4 +57,4 @@
 - **Niente `Co-Authored-By` nei commit né footer "Generated with" nelle PR.**
 - Prima di dichiarare finito: `uv run ruff check && uv run ruff format --check && uv run mypy src && uv run pytest` tutti verdi.
 
-**Stato al momento dell'handoff (agg. 2026-07-07, sessione feature #1):** prod = v0.10.0; dev contiene in più la feature subscription utente/gruppo (PR #15 mergiata, bot dev deployato) non ancora rilasciata in prod. Nessuna PR aperta, nessun problema noto. Da fare quando si vuole portarla in prod: workflow Prepare release (minor) → merge della release PR.
+**Stato al momento dell'handoff (agg. 2026-07-07, sessione feature #2):** prod = v0.10.0; dev contiene in più la feature subscription utente/gruppo (PR #15 mergiata, bot dev deployato) non ancora rilasciata in prod. Il branch `feature/custom-reminder-offsets` (feature #2, ADR 0013) è pronto ma non ancora aperto/mergiato come PR. Nessun problema noto. Da fare: aprire la PR su dev; quando si vuole portare tutto in prod, workflow Prepare release (minor) → merge della release PR; aggiornare la lista comandi BotFather con `personalizza_orari`.

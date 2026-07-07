@@ -22,7 +22,7 @@ src/fantaformazionibot/
     jobs.py              PTB jobs: daily calendar refresh, reminder send, (re)scheduling
   telegram/
     commands.py          /start /help /prossima_scadenza /promemoria_on /promemoria_off
-                         /promemoria + unknown-command fallback
+                         /promemoria /personalizza_orari + unknown-command fallback
     errors.py            error handler → DEBUG_CHAT_ID
     messages.py          all user-facing Italian texts (HTML parse mode)
   format.py              Italian date/duration formatting (static month names, zoneinfo)
@@ -50,6 +50,9 @@ src/fantaformazionibot/
 default offsets from `REMINDER_OFFSETS`) and triggers `reschedule_reminders`;
 `/promemoria_off` deletes it (only `origin='user'` rows) and reschedules;
 `/promemoria` shows the current state. In groups, on/off are admin-only (ADR 0012).
+`/personalizza_orari` updates `reminder_offsets` on the chat's row (auto-subscribing
+if none exists) or resets it to the configured default with `default`; same
+admin-only rule in groups (ADR 0013).
 
 ### Sending a reminder
 
