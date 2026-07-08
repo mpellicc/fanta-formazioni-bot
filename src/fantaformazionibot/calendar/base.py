@@ -20,6 +20,7 @@ class CalendarProvider(Protocol):
 def create_provider(settings: Settings) -> CalendarProvider:
     from fantaformazionibot.calendar.fixturedownload import FixtureDownloadProvider
     from fantaformazionibot.calendar.football_data_org import FootballDataOrgProvider
+    from fantaformazionibot.calendar.mock import MockProvider
 
     match settings.calendar_provider:
         case CalendarProviderName.FIXTUREDOWNLOAD:
@@ -30,3 +31,5 @@ def create_provider(settings: Settings) -> CalendarProvider:
                     "FOOTBALL_DATA_API_KEY is required when CALENDAR_PROVIDER=football-data-org"
                 )
             return FootballDataOrgProvider(settings.football_data_api_key)
+        case CalendarProviderName.MOCK:
+            return MockProvider(settings.mock_kickoff_offset)

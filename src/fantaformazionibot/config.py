@@ -12,10 +12,11 @@ TIMEZONE = ZoneInfo("Europe/Rome")
 
 
 class CalendarProvider(StrEnum):
-    """Source of the season's matchdays, selected via CALENDAR_PROVIDER. See ADR 0007/0014."""
+    """Source of the season's matchdays, selected via CALENDAR_PROVIDER. See ADR 0007/0014/0016."""
 
     FIXTUREDOWNLOAD = "fixturedownload"
     FOOTBALL_DATA_ORG = "football-data-org"
+    MOCK = "mock"
 
 
 _DURATION_RE = re.compile(r"^\s*(\d+)\s*([smhg])\s*$")
@@ -47,6 +48,8 @@ class Settings(BaseSettings):
     # Only required when calendar_provider is FOOTBALL_DATA_ORG.
     football_data_api_key: str | None = None
     calendar_refresh_time: time = time(hour=2, minute=0)  # Europe/Rome
+    # Only used when calendar_provider is MOCK (ADR 0016, dev-only testing aid).
+    mock_kickoff_offset: timedelta = timedelta(minutes=10)
     database_path: Path = Path("fantaformazionibot.db")
     deadline_margin: timedelta = timedelta(minutes=5)
     reminder_offsets: Annotated[tuple[timedelta, ...], NoDecode] = (
@@ -57,9 +60,9 @@ class Settings(BaseSettings):
     # If non-empty, commands are answered only in these chats (silence elsewhere).
     allowed_chat_ids: Annotated[tuple[int, ...], NoDecode] = ()
 
-    @field_validator("deadline_margin", mode="before")
+    @field_validator("deadline_margin", "mock_kickoff_offset", mode="before")
     @classmethod
-    def _parse_margin(cls, value: object) -> object:
+    def _parse_duration_field(cls, value: object) -> object:
         if isinstance(value, str):
             return parse_duration(value)
         return value
