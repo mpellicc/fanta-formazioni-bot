@@ -1,6 +1,6 @@
 [project]
 name = "fantaformazionibot"
-version = "0.12.1"
+version = "0.0.0"
 description = "Telegram bot that reminds you to set your Fantacalcio lineup"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -41,6 +41,5 @@ plugins = ["pydantic.mypy"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 
-[build-system]
-requires = ["uv_build>=0.7,<1"]
-build-backend = "uv_build"
+[tool.uv]
+package = false

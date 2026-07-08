@@ -1,6 +1,8 @@
 # ADR 0011: Manual-bump releases via "Prepare release" workflow
 
-- Status: accepted
+- Status: **superseded by ADR 0017** (2026-07-08) — trunk-based development with
+  tag releases replaces the `dev`/`main` release-PR flow described below. Kept
+  for history; do not follow this ADR for new work.
 - Date: 2026-07-07
 
 ## Context

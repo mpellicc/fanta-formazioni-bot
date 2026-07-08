@@ -60,8 +60,8 @@ wheels = [
 
 [[package]]
 name = "fantaformazionibot"
-version = "0.12.1"
-source = { editable = "." }
+version = "0.0.0"
+source = { virtual = "." }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic-settings" },
