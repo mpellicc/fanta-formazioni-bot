@@ -2,7 +2,8 @@ name: Deploy
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
 
 concurrency: deploy-${{ github.ref_name }}
@@ -27,9 +28,9 @@ jobs:
         run: |
           REPO="ghcr.io/${{ github.repository }}"
           TAGS="$REPO:${{ github.sha }}"
-          if [ "${{ github.ref_name }}" = "main" ]; then
-            VERSION=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
-            TAGS="$TAGS,$REPO:latest,$REPO:$VERSION"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${{ github.ref_name }}"
+            TAGS="$TAGS,$REPO:latest,$REPO:${VERSION#v}"
           else
             TAGS="$TAGS,$REPO:dev"
           fi
@@ -48,10 +49,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+    # Tag pushes (releases) deploy production; pushes to main deploy the dev bot.
+    environment: ${{ github.ref_type == 'tag' && 'production' || 'development' }}
     env:
-      APP_DIR: ${{ github.ref_name == 'main' && 'fantaformazionibot' || 'fantaformazionibot-dev' }}
-      IMAGE_TAG: ${{ github.ref_name == 'main' && 'latest' || 'dev' }}
+      APP_DIR: ${{ github.ref_type == 'tag' && 'fantaformazionibot' || 'fantaformazionibot-dev' }}
+      IMAGE_TAG: ${{ github.ref_type == 'tag' && 'latest' || 'dev' }}
     steps:
       - uses: actions/checkout@v4
       - name: Copy compose file
@@ -89,20 +91,19 @@ jobs:
             docker compose up -d
 
   release:
-    if: github.ref_name == 'main'
+    if: github.ref_type == 'tag'
     needs: deploy
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Create git tag and GitHub release
+      - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
-          if gh release view "v$VERSION" >/dev/null 2>&1; then
-            echo "Release v$VERSION already exists, skipping"
+          if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+            echo "Release ${{ github.ref_name }} already exists, skipping"
           else
-            gh release create "v$VERSION" --title "v$VERSION" --generate-notes
+            gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --generate-notes
           fi

@@ -1,11 +1,11 @@
 # Deployment
 
-Runtime host: an **Oracle Cloud Always Free** VM running the bot as Docker containers (ADR 0009). CI/CD is GitHub Actions → GHCR → SSH. Two instances live on the same VM (ADR 0010):
+Runtime host: an **Oracle Cloud Always Free** VM running the bot as Docker containers (ADR 0009). CI/CD is GitHub Actions → GHCR → SSH. Two instances live on the same VM (ADR 0010, amended by ADR 0017 for the trigger):
 
-| Branch | GitHub environment | VM directory | Image tag | Bot |
+| Trigger | GitHub environment | VM directory | Image tag | Bot |
 |---|---|---|---|---|
-| `main` | `production` | `~/fantaformazionibot` | `:latest` | production bot → reminder channel |
-| `dev` | `development` | `~/fantaformazionibot-dev` | `:dev` | dev bot → debug chat |
+| push to `main` | `development` | `~/fantaformazionibot-dev` | `:dev` | dev bot → debug chat |
+| push of a tag `v*` | `production` | `~/fantaformazionibot` | `:latest` (+ immutable `:X.Y.Z`) | production bot → reminder channel |
 
 The pipeline owns the VM state: on every deploy it copies `compose.yaml` and regenerates the `.env` from the environment's secrets/variables. **Do not edit those files on the VM** — changes are overwritten at the next deploy. To change configuration, edit the value on GitHub and re-run Deploy.
 
@@ -54,25 +54,38 @@ Everything else (app directories, compose file, env files) is created by the dep
 
 ## Workflows
 
-- **`ci.yml`** — push to `main`/`dev` and every PR: `ruff check`, `ruff format --check`, `mypy src`, `pytest`.
-- **`deploy.yml`** — push to `main` or `dev` (or manual `workflow_dispatch`): build multi-arch image (amd64+arm64), push to GHCR with the branch's tag, then over SSH: copy `compose.yaml`, write `.env` from the environment's config, `docker compose pull && up -d` in the branch's directory.
+- **`ci.yml`** — push to `main` and every PR: `ruff check`, `ruff format --check`, `mypy src`, `pytest`. (Once `release-1.0` is cut, it's added here too so cherry-picked fix commits get checked.)
+- **`deploy.yml`** — push to `main`, push of a tag `v*`, or manual `workflow_dispatch` (pick the branch or tag to run from): build multi-arch image (amd64+arm64), push to GHCR, then over SSH: copy `compose.yaml`, write `.env` from the environment's config, `docker compose pull && up -d` in the target directory. On a tag push, a `release` job also creates the GitHub Release for that tag.
 
-## Branching and release flow
+## Branching and release flow (ADR 0017: trunk + tag releases)
 
-`dev` is the default branch. Feature branches → PR into `dev` (auto-deploys the dev bot) → release PR `dev` → `main` (deploys production).
+`main` is the trunk and the default branch. Feature branches → PR into `main`, **squash merge** (one commit per feature) — this is the only merge strategy; there are no more release PRs.
 
-Releases are versioned via the **Prepare release** workflow (ADR 0011): Actions → Prepare release → run on `dev` choosing patch/minor/major. It bumps `pyproject.toml`, commits `Release vX.Y.Z` to `dev`, and opens the release PR. Merging it deploys production, tags the image (`:X.Y.Z` + `:latest`), creates the git tag `vX.Y.Z`, and publishes the GitHub Release with auto-generated notes.
+**A release is a git tag, not a PR or a workflow run:**
 
-Merge conventions:
+```bash
+git checkout main && git pull
+git tag v1.1.0
+git push origin v1.1.0
+```
 
-- PRs into `dev`: **squash merge** (one commit per feature).
-- Release PRs into `main`: **merge commit** — never squash, or `dev` and `main` histories diverge and later release PRs show phantom conflicts.
-- `main` requires one approving review. Release PRs are authored by `github-actions[bot]`, so the repository owner can approve them himself; the release PR shows no CI checks (PRs opened with `GITHUB_TOKEN` don't trigger workflows) — the same code already passed CI on `dev`.
+Pushing the tag builds the image, tags it `:X.Y.Z` + `:latest`, deploys production, and publishes the GitHub Release — all in `deploy.yml`. There is no version bump commit and no separate "Prepare release" step; `pyproject.toml` does not track a version (ADR 0017).
+
+**Seasonal maintenance branch** (`release-1.0`, cut from `main` at the `v1.0.0` tag): during the season, in-season bugfixes are fixed on `main` first (so the trunk never regresses), then cherry-picked onto `release-1.0` and tagged as a patch:
+
+```bash
+git checkout release-1.0 && git pull
+git cherry-pick <fix-commit-sha>   # the fix, already merged into main
+git tag v1.0.3
+git push origin release-1.0 v1.0.3
+```
+
+Never fix directly on `release-1.0` first — always fix on `main`, then cherry-pick down, to avoid the fix silently missing from the next `main`-based version.
 
 ## Operations
 
 - **Logs**: `ssh <vm>` then `docker compose logs -f` in `~/fantaformazionibot` (prod) or `~/fantaformazionibot-dev` (dev)
-- **Manual deploy / config reload**: Actions → Deploy → Run workflow (pick the branch)
+- **Manual deploy / config reload**: Actions → Deploy → Run workflow (pick `main` for the dev bot, or a `vX.Y.Z` tag for production)
 - **Rotate a token**: update the environment secret, re-run Deploy
 - **Switch calendar provider** (e.g. after a staleness alert, ADR 0014): set the `CALENDAR_PROVIDER` environment variable to `football-data-org`, re-run Deploy; requires the repo-level `FOOTBALL_DATA_API_KEY` secret to already be set
 - **Test a reminder end-to-end on the dev bot** (ADR 0016): on the `development` environment, set `CALENDAR_PROVIDER=mock` (optionally `MOCK_KICKOFF_OFFSET`), re-run Deploy. Then use `/personalizza_orari` on the chat under test to pick short custom offsets so the reminder actually fires within the window. Set `CALENDAR_PROVIDER` back to `fixturedownload` and redeploy when done — the next refresh restores round 1's real kickoff. **Never set `CALENDAR_PROVIDER=mock` on `production`.**
@@ -91,7 +104,7 @@ The current VM is `VM.Standard.E2.1.Micro` (Always Free); `VM.Standard.A1.Flex` 
    ```
 4. **Back up the DB on the old VM**, for each instance you care about preserving (at minimum prod, since it may hold real user/group subscriptions — dev's are just test data). Use the [DB backup](#operations) command with the matching volume name (`fantaformazionibot_bot-data` for prod, `fantaformazionibot-dev_bot-data` for dev). Losing `subscriptions` silently unsubscribes every user/group that ran `/promemoria_on` — this is the one table worth carrying over; `matchdays` regenerates from the calendar feed and losing `sent_reminders` only risks one duplicate reminder.
 5. **Update the `SSH_HOST` secret** (repository-level) with the new IP.
-6. **Re-run Deploy for both branches** (Actions → Deploy → Run workflow, once for `dev`, once for `main`). The pipeline creates the app directories, `compose.yaml` and `.env` from scratch, and the first `docker compose up -d` creates fresh empty volumes on the new VM.
+6. **Re-run Deploy for both bots** (Actions → Deploy → Run workflow, once from `main` for dev, once from the current production `vX.Y.Z` tag for prod). The pipeline creates the app directories, `compose.yaml` and `.env` from scratch, and the first `docker compose up -d` creates fresh empty volumes on the new VM.
 7. **Restore the DB** on the new VM: stop the container (`docker compose stop` in the app directory), copy the backed-up file into the new volume (reverse of the backup command: `docker run --rm -v <volume>:/data -v $PWD:/backup alpine cp /backup/fantaformazionibot.db /data/`), then `docker compose start`.
 8. **Verify** both bots on the new VM (`docker compose logs -f` in each app directory, and check `/promemoria` reflects a previously-known subscription) before decommissioning anything.
 9. **Terminate the old VM** in the Oracle console once confirmed.
