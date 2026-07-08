@@ -16,6 +16,8 @@ Reminders are posted to the [@fantaformazionireminders](https://t.me/fantaformaz
 
 In groups, `/promemoria_on`, `/promemoria_off`, and `/personalizza_orari` are restricted to group administrators.
 
+`/start`, `/promemoria`, and `/personalizza_orari` also come with inline buttons: a toggle to turn reminders on/off, and a grid of common offset presets (plus a "Personalizzati" button for free-form values) so reminders can be managed by tapping instead of typing.
+
 ## How it works
 
 - The Serie A calendar is fetched from [fixturedownload.com](https://fixturedownload.com) (CSV, UTC) at startup and refreshed daily; the source is pluggable via `CALENDAR_PROVIDER`.
@@ -31,7 +33,7 @@ git clone https://github.com/mpellicc/fanta-formazioni-bot.git
 cd fanta-formazioni-bot
 uv sync
 
-cp env.example .env   # fill in TOKEN, CHANNEL_CHAT_ID, DEBUG_CHAT_ID
+cp .env.example .env   # fill in TOKEN, CHANNEL_CHAT_ID, DEBUG_CHAT_ID
 
 uv run python -m fantaformazionibot
 ```
@@ -47,7 +49,7 @@ uv run pytest
 ## Running with Docker
 
 ```bash
-cp env.example .env   # fill in the required values
+cp .env.example .env   # fill in the required values
 docker compose up -d --build
 ```
 
@@ -55,7 +57,7 @@ The SQLite database lives on the `bot-data` volume. Production deployment (Oracl
 
 ## Configuration
 
-All configuration is via environment variables (or `.env`); see [env.example](env.example) for the full list and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#environment-variables) for details. Required: `TOKEN` (from [@BotFather](https://core.telegram.org/bots#botfather)), `CHANNEL_CHAT_ID`, `DEBUG_CHAT_ID`.
+All configuration is via environment variables (or `.env`); see [.env.example](.env.example) for the full list and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#environment-variables) for details. Required: `TOKEN` (from [@BotFather](https://core.telegram.org/bots#botfather)), `CHANNEL_CHAT_ID`, `DEBUG_CHAT_ID`.
 
 ## Contributing
 

@@ -121,6 +121,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/
@@ -170,8 +172,5 @@ cython_debug/
 *.db-wal
 *.db-shm
 
-# Environment variables file
-.env
-.env.*
 # macOS
 .DS_Store

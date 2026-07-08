@@ -5,6 +5,7 @@ import pytest
 from fantaformazionibot.calendar.base import create_provider, season_year
 from fantaformazionibot.calendar.fixturedownload import FixtureDownloadProvider
 from fantaformazionibot.calendar.football_data_org import FootballDataOrgProvider
+from fantaformazionibot.calendar.mock import MockProvider
 from fantaformazionibot.config import CalendarProvider, Settings
 
 
@@ -41,3 +42,8 @@ def test_create_provider_football_data_org() -> None:
 def test_create_provider_football_data_org_requires_api_key() -> None:
     with pytest.raises(ValueError, match="FOOTBALL_DATA_API_KEY"):
         create_provider(_settings(calendar_provider=CalendarProvider.FOOTBALL_DATA_ORG))
+
+
+def test_create_provider_mock() -> None:
+    provider = create_provider(_settings(calendar_provider=CalendarProvider.MOCK))
+    assert isinstance(provider, MockProvider)

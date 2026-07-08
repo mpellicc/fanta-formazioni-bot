@@ -16,6 +16,7 @@ src/fantaformazionibot/
     base.py              CalendarProvider protocol + factory (CALENDAR_PROVIDER) + season_year
     fixturedownload.py   httpx download of the UTC CSV + pure parse function
     football_data_org.py httpx call to the football-data.org API + pure parse function (ADR 0014)
+    mock.py              dev-only: fabricates a near-future round-1 kickoff for testing (ADR 0016)
   storage/
     repository.py        all SQL (sqlite3, WAL); schema created at startup
   reminders/
@@ -118,13 +119,14 @@ Telegram messages use **HTML parse mode** (not MarkdownV2): static texts need no
 | `TOKEN` | yes | — | Bot token from BotFather |
 | `CHANNEL_CHAT_ID` | yes | — | Chat id of the reminder channel |
 | `DEBUG_CHAT_ID` | yes | — | Chat id receiving error reports |
-| `CALENDAR_PROVIDER` | no | `fixturedownload` | Calendar source: `fixturedownload` or `football-data-org` (ADR 0007/0014) |
+| `CALENDAR_PROVIDER` | no | `fixturedownload` | Calendar source: `fixturedownload`, `football-data-org` or `mock` (ADR 0007/0014/0016) |
 | `CALENDAR_URL` | no | fixturedownload UTC CSV | Feed URL, supports `{season_year}` (fixturedownload only) |
 | `FOOTBALL_DATA_API_KEY` | only if `CALENDAR_PROVIDER=football-data-org` | — | API key for football-data.org (ADR 0014) |
+| `MOCK_KICKOFF_OFFSET` | no | `10m` | Fake round-1 kickoff, relative to now; only used if `CALENDAR_PROVIDER=mock` — **dev only** (ADR 0016) |
 | `CALENDAR_REFRESH_TIME` | no | `02:00` | Daily refresh time (Europe/Rome, `HH:MM`) |
 | `DATABASE_PATH` | no | `fantaformazionibot.db` | SQLite file path |
 | `DEADLINE_MARGIN` | no | `5m` | Deadline = kickoff − margin (ADR 0006) |
 | `REMINDER_OFFSETS` | no | `24h,1h,5m` | Reminder times before the deadline |
 | `ALLOWED_CHAT_IDS` | no | empty (open) | If non-empty, commands are answered only in these chats (dev bot whitelist) |
 
-Durations accept `Ns`, `Nm`, `Nh` (e.g. `24h`, `90m`, `30s`).
+Durations accept `Nm`, `Nh`, `Ng` (e.g. `24h`, `90m`, `2g`); `Ns` is still parsed but no longer shown in user-facing text (ADR 0015).

@@ -10,7 +10,7 @@ uv run pytest                # tests
 uv run ruff check            # lint
 uv run ruff format           # format (--check in CI)
 uv run mypy src              # strict type checking
-uv run python -m fantaformazionibot   # run the bot (needs .env, see env.example)
+uv run python -m fantaformazionibot   # run the bot (needs .env, see .env.example)
 docker build .               # container build (multi-arch amd64+arm64 in CI)
 ```
 
@@ -18,7 +18,7 @@ All four checks (ruff check, ruff format --check, mypy, pytest) must pass before
 
 ## Where things are
 
-- `src/fantaformazionibot/` — the package (src layout). Modules: `config.py` (pydantic-settings), `calendar/` (provider protocol + fixturedownload/football-data.org implementations), `storage/repository.py` (all SQL, sqlite3+WAL), `reminders/planner.py` (pure scheduling logic) and `reminders/jobs.py` (PTB JobQueue wiring), `telegram/` (handlers, messages), `format.py` (Italian formatting).
+- `src/fantaformazionibot/` — the package (src layout). Modules: `config.py` (pydantic-settings), `calendar/` (provider protocol + fixturedownload/football-data.org/mock implementations), `storage/repository.py` (all SQL, sqlite3+WAL), `reminders/planner.py` (pure scheduling logic) and `reminders/jobs.py` (PTB JobQueue wiring), `telegram/` (command handlers, inline-keyboard builders + callbacks, messages), `format.py` (Italian formatting).
 - `tests/` — pytest; pure logic (planner, CSV parsing, config parsing, formatting) is tested without network or Telegram.
 - `docs/ARCHITECTURE.md` — components, flows, DB schema, env vars table.
 - `docs/adr/` — one ADR per architectural decision. **Read the relevant ADR before changing an architectural choice; add a new ADR when making one.**
