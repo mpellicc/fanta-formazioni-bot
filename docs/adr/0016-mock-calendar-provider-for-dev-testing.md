@@ -110,5 +110,5 @@ the existing per-environment variable table.
   kickoff.
 - `calendar/base.py::create_provider` gets a third `case`, same shape as the
   other two — matches ADR 0007's stated extension cost exactly.
-- `env.example` and `docs/ARCHITECTURE.md`'s provider/env-var docs mention the
+- `.env.example` and `docs/ARCHITECTURE.md`'s provider/env-var docs mention the
   new value and setting.
