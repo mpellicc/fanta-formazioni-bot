@@ -1,6 +1,6 @@
 # ADR 0010: Dev/prod environments via GitHub Environments and two bots
 
-- Status: accepted
+- Status: accepted, **amended by ADR 0017** (2026-07-08)
 - Date: 2026-07-06
 
 ## Context
@@ -12,12 +12,18 @@ With `main` as the production branch and `dev` as the integration branch, change
 
 ## Decision
 
-- **Two deployed instances on the same VM**, one per branch:
-  - push to `main` → environment `production` → `~/fantaformazionibot`, image `:latest`, production bot/channel
-  - push to `dev` → environment `development` → `~/fantaformazionibot-dev`, image `:dev`, dev bot (BotFather) posting to the debug chat
+- **Two deployed instances on the same VM**, one per trigger:
+  - push to `main` → environment `development` → `~/fantaformazionibot-dev`, image `:dev`, dev bot (BotFather) posting to the debug chat
+  - push of a tag `v*` → environment `production` → `~/fantaformazionibot`, image `:latest` (+ the immutable `:X.Y.Z`), production bot/channel
 - **GitHub Environments** hold the per-environment configuration: `BOT_TOKEN` as an environment secret, `CHANNEL_CHAT_ID` and `DEBUG_CHAT_ID` as environment variables. `SSH_HOST`/`SSH_USER`/`SSH_KEY` stay repository-level (the VM is shared).
 - **The pipeline owns the VM state**: on every deploy it copies `compose.yaml` and regenerates `.env` from the environment's secrets/vars. Changing configuration = edit the value on GitHub → re-run Deploy. Manual edits on the VM get overwritten by design.
-- `dev` is the repository's **default branch**; PRs target `dev`, releases are PRs `dev` → `main`.
+
+> **Amendment (ADR 0017, 2026-07-08):** the branch model changed from
+> `dev`/`main` mirrors to trunk (`main`) + tag releases. The two GitHub
+> Environments, their secrets/vars, and the shared-VM/two-bot setup described
+> above are unchanged — only the *trigger* moved from "which branch" to "branch
+> push vs. tag push" (bullet list above reflects the new mapping). See ADR 0017
+> for the full model and migration.
 
 ## Alternatives considered
 
