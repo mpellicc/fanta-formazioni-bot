@@ -36,7 +36,7 @@ All four checks (ruff check, ruff format --check, mypy, pytest) must pass before
 ## Conventions and invariants
 
 - **Datetimes are always tz-aware.** Stored as ISO 8601 UTC; converted to `Europe/Rome` only in `format.py`. Never use `locale`, `dateutil`, or `pytz` (stdlib `zoneinfo` only).
-- **User-facing texts are Italian**, live only in `telegram/messages.py`, and use **HTML parse mode** (escape dynamic values with `html.escape`; never MarkdownV2).
+- **User-facing texts are Italian** and use **HTML parse mode** (escape dynamic values with `html.escape`; never MarkdownV2). Message bodies live in `telegram/messages.py`; inline-keyboard button labels live in `telegram/keyboards.py` (`ACTION_*` constants) — `messages.py` imports them where prose needs to name a button, so wording is single-sourced either way (ADR 0018 §10).
 - **All SQL lives in `storage/repository.py`.** No ORM.
 - **Reminders are `run_once` jobs at exact times** (never interval polling); dedupe via the `sent_reminders` table. Reschedule = drop jobs with the `reminder:` name prefix and rebuild from DB (see `reminders/jobs.py`).
 - **Deadline is derived**: `kickoff − DEADLINE_MARGIN` (config), never stored.

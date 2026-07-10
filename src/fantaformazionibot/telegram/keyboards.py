@@ -11,6 +11,15 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from fantaformazionibot import format as fmt
 
+# Button label wording (single source of truth: messages.py imports these for any
+# prose that names a button, so the two never drift independently — ADR 0018 §10).
+ACTION_SUBSCRIBE = "Attiva promemoria"
+ACTION_UNSUBSCRIBE = "Disattiva promemoria"
+ACTION_SAVE = "Salva"
+ACTION_DEFAULTS = "Predefiniti"
+ACTION_CUSTOM = "Personalizzati"
+ACTION_BACK = "Indietro"
+
 OFFSET_PRESETS: tuple[timedelta, ...] = (
     timedelta(days=2),
     timedelta(hours=24),
@@ -94,9 +103,9 @@ def decode_back(data: str) -> int:
 
 def build_subscription_keyboard(*, subscribed: bool) -> InlineKeyboardMarkup:
     button = (
-        InlineKeyboardButton("🔕 Disattiva promemoria", callback_data=CB_UNSUBSCRIBE)
+        InlineKeyboardButton(f"🔕 {ACTION_UNSUBSCRIBE}", callback_data=CB_UNSUBSCRIBE)
         if subscribed
-        else InlineKeyboardButton("🔔 Attiva promemoria", callback_data=CB_SUBSCRIBE)
+        else InlineKeyboardButton(f"🔔 {ACTION_SUBSCRIBE}", callback_data=CB_SUBSCRIBE)
     )
     return InlineKeyboardMarkup([[button]])
 
@@ -119,14 +128,14 @@ def build_offsets_keyboard(mask: int) -> InlineKeyboardMarkup:
         rows.append(row)
     rows.append(
         [
-            InlineKeyboardButton("💾 Salva", callback_data=encode_save(mask)),
-            InlineKeyboardButton("↩️ Predefiniti", callback_data=CB_OFFSETS_DEFAULT),
+            InlineKeyboardButton(f"💾 {ACTION_SAVE}", callback_data=encode_save(mask)),
+            InlineKeyboardButton(f"↩️ {ACTION_DEFAULTS}", callback_data=CB_OFFSETS_DEFAULT),
         ]
     )
-    rows.append([InlineKeyboardButton("✏️ Personalizzati", callback_data=encode_custom(mask))])
+    rows.append([InlineKeyboardButton(f"✏️ {ACTION_CUSTOM}", callback_data=encode_custom(mask))])
     return InlineKeyboardMarkup(rows)
 
 
 def build_offsets_waiting_keyboard(mask: int) -> InlineKeyboardMarkup:
-    button = InlineKeyboardButton("⬅️ Indietro", callback_data=encode_back(mask))
+    button = InlineKeyboardButton(f"⬅️ {ACTION_BACK}", callback_data=encode_back(mask))
     return InlineKeyboardMarkup([[button]])

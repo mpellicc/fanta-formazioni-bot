@@ -101,11 +101,13 @@ behaviour. `format.py` is in scope only to confirm this boundary — no
 behavioural change is planned there, so its tests stay green.
 
 **8. Scope of the pass.** Rewrite `telegram/messages.py`; update the button
-labels in `telegram/keyboards.py` to match; produce a refreshed **BotFather
-command-description list** as pasteable text (out-of-repo, applied by hand on
-both dev and prod bots). No handler, callback_data, model, or scheduling logic
-changes — the only code touched beyond copy is the `reminder()` selector of
-Decision 9.
+labels in `telegram/keyboards.py` to match (deduplicated per Decision 10);
+produce a refreshed **BotFather command-description list** as pasteable text
+(out-of-repo, applied by hand on both dev and prod bots), plus **About**/
+**Description** texts (same, out-of-repo). No handler, callback_data, or
+scheduling logic changes. The code touched beyond copy: the `reminder()`
+selector (Decision 9) and its new `Settings.urgent_reminder_threshold` field
+(Decision 9) — a config addition, not a data-model change.
 
 **9. Reminder copy: a rotating pool for the "early" reminders, a fixed template
 for the "last-call" ones.** The `reminder` message splits by how close the
@@ -132,12 +134,41 @@ offset is to the deadline:
   the point: it trains the reflex "quando vedo *questo* messaggio, controllo
   subito la formazione." No tonal faces here (Decision 4b): urgency only.
 
-The 10-minute threshold is a module constant (`URGENT_REMINDER_THRESHOLD`),
-inclusive, independent of the preset grid so it classifies custom offsets too.
-`reminder()` gains the offset as a parameter to branch on; `reminders/jobs.py`
-already carries `offset_seconds` in the job and passes it at the call site. This
-is the only logic touched — still no model, schedule, callback, or handler
-change.
+The threshold is a `Settings` field, `urgent_reminder_threshold`
+(env `URGENT_REMINDER_THRESHOLD`, default `10m`), not a hardcoded constant —
+it follows the same `parse_duration`/`field_validator` pattern as
+`deadline_margin` and `mock_kickoff_offset` (`config.py`). Despite living in a
+copy-focused ADR it's an operational knob (which presets count as "last-call"),
+not a voice choice, so it belongs where the other timing knobs already are;
+`messages.reminder()` takes it as an explicit parameter rather than reading a
+module constant, keeping the function pure and testable with any threshold.
+It's inclusive, and independent of the preset grid so it classifies custom
+offsets too. `reminder()` gains the offset and the threshold as parameters to
+branch on; `reminders/jobs.py` already carries `offset_seconds` in the job and
+reads `settings.urgent_reminder_threshold`, passing both at the call site.
+
+**10. Button-label wording lives once, in `keyboards.py`.** `keyboards.py`'s
+button text (`Attiva/Disattiva promemoria`, `Salva`, `Predefiniti`,
+`Personalizzati`, `Indietro`) and the handful of `messages.py` sentences that
+name those same buttons in prose ("premi **Salva**", "il bottone **Indietro**")
+were independently hand-written strings with no link between them — exactly
+the drift risk flagged when reviewing this ADR. Fix: `keyboards.py` exports
+plain `str` constants (`ACTION_SUBSCRIBE`, `ACTION_SAVE`, `ACTION_DEFAULTS`, …)
+next to the builders that already own callback_data/preset logic for these
+buttons, and composes them with the button emoji; `messages.py` imports
+`keyboards` for the handful of sentences that mention a button, interpolating
+the same constant. Button wording is kept in `keyboards.py` rather than
+`messages.py` because it's the button's own domain (colocated with its
+callback_data and builder) — this narrows the blanket "all user-facing texts
+live in `messages.py`" rule from `CLAUDE.md` into "message bodies in
+`messages.py`, button labels in `keyboards.py`, each imported by the other
+where needed"; `CLAUDE.md`'s invariant line is updated to match. Deliberately
+**not** a JSON/i18n-style catalog with string-keyed lookups: this project has
+exactly one language and is `mypy --strict` end to end, so a data-file layer
+would trade compile-time-checked constants for a stringly-typed lookup and an
+interpolation layer to reimplement HTML-escaping/dynamic values that plain
+f-strings already give for free, for ~30 total strings. Revisit only if the
+string count or a real multi-language need grows enough to justify it.
 
 ## Anchor examples (before → after, medium/clean)
 
@@ -194,9 +225,19 @@ against these rules.
 - A new BotFather command-description list is delivered as text and must be
   pasted on **both** dev and prod bots (menu descriptions only; enforcement
   stays in code).
+- About/Description texts are delivered as text too, same manual-paste flow,
+  with a tagged variant on the dev bot (`⚠️ BOT DI TEST — non è quello
+  ufficiale`) so it can't be mistaken for the production bot if ever shared.
 - `messages.py` grows a `REMINDER_POOL` (early-reminder variants) and a fixed
-  `reminder_urgent`; `reminder()` becomes an offset-based selector. `reminders/
-  jobs.py` passes the existing `offset_seconds` into the message builder — one
-  mechanical call-site change, no scheduling or dedupe change.
+  `reminder_urgent`; `reminder()` becomes an offset-and-threshold-based
+  selector. `config.py` gains `Settings.urgent_reminder_threshold` (env
+  `URGENT_REMINDER_THRESHOLD`, default `10m`); `reminders/jobs.py` reads it
+  and passes both it and the existing `offset_seconds` into the message
+  builder. `keyboards.py` gains the `ACTION_*` button-label constants
+  (colocated with its builders/callback_data); `messages.py` imports
+  `keyboards` for the sentences that name a button.
+- `CLAUDE.md`'s "user-facing texts live only in `messages.py`" invariant is
+  narrowed to "message bodies in `messages.py`, button labels in
+  `keyboards.py`" (Decision 10) to match.
 - This ADR is the reference for any future user-facing copy; new strings follow
   its lexicon, emoji convention, and the information-before-the-joke guardrail.

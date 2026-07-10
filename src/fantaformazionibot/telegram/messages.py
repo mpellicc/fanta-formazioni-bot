@@ -8,13 +8,12 @@ from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 
 from fantaformazionibot import format as fmt
+from fantaformazionibot.telegram import keyboards
 
 OFFSETS_USAGE_EXAMPLE = "/personalizza_orari 24h 1h 5m"
 
 CHANNEL_USERNAME = "@fantaformazionireminders"
 MAINTAINER_USERNAME = "@pelliccm"
-
-URGENT_REMINDER_THRESHOLD = timedelta(minutes=10)
 
 
 def start(reminder_offsets: Sequence[timedelta]) -> str:
@@ -43,7 +42,8 @@ def help_() -> str:
         "oppure passa direttamente gli orari come argomenti\n"
         "• /start — presentazione del bot\n"
         "• /help — questo messaggio\n\n"
-        "Nella tastiera di /personalizza_orari, il bottone <b>Personalizzati</b> ti fa scegliere "
+        "Nella tastiera di /personalizza_orari, il bottone "
+        f"<b>{keyboards.ACTION_CUSTOM}</b> ti fa scegliere "
         "un orario non in lista: rispondi al messaggio che ti invio con un formato come "
         "<code>2g,12h,10m</code> (unità m/h/g).\n\n"
         "Nei gruppi, /promemoria_on, /promemoria_off e /personalizza_orari "
@@ -138,12 +138,19 @@ def _reminder_urgent(round_: int, time: str, remaining: str) -> str:
     )
 
 
-def reminder(round_: int, deadline: datetime, now: datetime, offset_seconds: int) -> str:
-    """Early reminders (offset > 10 min) rotate through a pool of variants; the last-call
-    reminders (offset <= 10 min) always use the same fixed, urgent template (ADR 0018 §9)."""
+def reminder(
+    round_: int,
+    deadline: datetime,
+    now: datetime,
+    offset_seconds: int,
+    urgent_threshold: timedelta,
+) -> str:
+    """Early reminders (offset > urgent_threshold) rotate through a pool of variants; the
+    last-call reminders (offset <= urgent_threshold) always use the same fixed, urgent
+    template (ADR 0018 §9). urgent_threshold is Settings.urgent_reminder_threshold."""
     time = fmt.format_time(deadline)
     remaining = fmt.format_remaining(deadline, now)
-    if offset_seconds <= URGENT_REMINDER_THRESHOLD.total_seconds():
+    if offset_seconds <= urgent_threshold.total_seconds():
         return _reminder_urgent(round_, time, remaining)
     date = fmt.format_date(deadline)
     variant = _REMINDER_POOL[_reminder_pool_index(round_, offset_seconds)]
@@ -201,7 +208,8 @@ def offsets_usage(current: Sequence[timedelta] | None) -> str:
     )
     return (
         f"{status}"
-        "Scegli gli orari toccando le caselle qui sotto, poi premi <b>Salva</b>.\n"
+        "Scegli gli orari toccando le caselle qui sotto, poi premi "
+        f"<b>{keyboards.ACTION_SAVE}</b>.\n"
         f"In alternativa usa <code>{OFFSETS_USAGE_EXAMPLE}</code> "
         "(unità m/h/g, tra 1 minuto e 7 giorni, massimo 10 orari), oppure "
         "<code>/personalizza_orari default</code> per tornare ai valori predefiniti."
@@ -213,7 +221,8 @@ def offsets_custom_prompt() -> str:
         "✏️ <b>Rispondi a questo messaggio</b> con gli orari che vuoi impostare, ad esempio "
         f"<code>{OFFSETS_USAGE_EXAMPLE}</code> (unità m/h/g, tra 1 minuto e 7 giorni, "
         "massimo 10 orari).\n\n"
-        "Usa /annulla oppure il bottone ⬅️ Indietro per tornare alle caselle predefinite "
+        f"Usa /annulla oppure il bottone ⬅️ {keyboards.ACTION_BACK} "
+        "per tornare alle caselle predefinite "
         "senza cambiare nulla."
     )
 
