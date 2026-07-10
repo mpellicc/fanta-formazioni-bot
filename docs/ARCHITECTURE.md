@@ -127,6 +127,7 @@ Telegram messages use **HTML parse mode** (not MarkdownV2): static texts need no
 | `DATABASE_PATH` | no | `fantaformazionibot.db` | SQLite file path |
 | `DEADLINE_MARGIN` | no | `5m` | Deadline = kickoff − margin (ADR 0006) |
 | `REMINDER_OFFSETS` | no | `24h,1h,5m` | Reminder times before the deadline |
+| `URGENT_REMINDER_THRESHOLD` | no | `10m` | Reminders at or under this offset use the fixed "last-call" template instead of the rotating pool (ADR 0018 §9) |
 | `ALLOWED_CHAT_IDS` | no | empty (open) | If non-empty, commands are answered only in these chats (dev bot whitelist) |
 
 Durations accept `Nm`, `Nh`, `Ng` (e.g. `24h`, `90m`, `2g`); `Ns` is still parsed but no longer shown in user-facing text (ADR 0015).

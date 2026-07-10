@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     mock_kickoff_offset: timedelta = timedelta(minutes=10)
     database_path: Path = Path("fantaformazionibot.db")
     deadline_margin: timedelta = timedelta(minutes=5)
+    # Reminders at or under this offset use the fixed "last-call" template (ADR 0018 §9).
+    urgent_reminder_threshold: timedelta = timedelta(minutes=10)
     reminder_offsets: Annotated[tuple[timedelta, ...], NoDecode] = (
         timedelta(hours=24),
         timedelta(hours=1),
@@ -60,7 +62,9 @@ class Settings(BaseSettings):
     # If non-empty, commands are answered only in these chats (silence elsewhere).
     allowed_chat_ids: Annotated[tuple[int, ...], NoDecode] = ()
 
-    @field_validator("deadline_margin", "mock_kickoff_offset", mode="before")
+    @field_validator(
+        "deadline_margin", "mock_kickoff_offset", "urgent_reminder_threshold", mode="before"
+    )
     @classmethod
     def _parse_duration_field(cls, value: object) -> object:
         if isinstance(value, str):

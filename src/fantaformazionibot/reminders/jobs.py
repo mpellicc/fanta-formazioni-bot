@@ -125,7 +125,13 @@ async def send_reminder_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     deadline = planner.deadline_for(matchday, settings.deadline_margin)
     await context.bot.send_message(
         chat_id=reminder.chat_id,
-        text=messages.reminder(matchday.round, deadline, now),
+        text=messages.reminder(
+            matchday.round,
+            deadline,
+            now,
+            reminder.offset_seconds,
+            settings.urgent_reminder_threshold,
+        ),
         parse_mode=ParseMode.HTML,
     )
     repository.mark_reminder_sent(reminder.chat_id, reminder.round, reminder.offset_seconds)
