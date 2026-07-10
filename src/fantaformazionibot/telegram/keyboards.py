@@ -120,7 +120,7 @@ def build_offsets_keyboard(mask: int) -> InlineKeyboardMarkup:
     rows.append(
         [
             InlineKeyboardButton("💾 Salva", callback_data=encode_save(mask)),
-            InlineKeyboardButton("↩️ Default", callback_data=CB_OFFSETS_DEFAULT),
+            InlineKeyboardButton("↩️ Predefiniti", callback_data=CB_OFFSETS_DEFAULT),
         ]
     )
     rows.append([InlineKeyboardButton("✏️ Personalizzati", callback_data=encode_custom(mask))])
