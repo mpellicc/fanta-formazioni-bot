@@ -19,12 +19,11 @@ MAINTAINER_USERNAME = "@pelliccm"
 def start(reminder_offsets: Sequence[timedelta]) -> str:
     offsets = fmt.join_list([fmt.format_duration(offset) for offset in reminder_offsets])
     return (
-        "Ciao, mister! ⚽ Sono <b>FantaFormazioni Bot</b>.\n\n"
+        "Ciao, mister! Sono <b>Fanta Formazioni Bot</b> ⚽.\n\n"
         "Ti tengo d'occhio le scadenze di ogni giornata di Serie A, così non "
         "schieri più mezza squadra in panchina.\n"
         f"I promemoria arrivano <b>{offsets}</b> prima della scadenza "
-        f"sul canale {CHANNEL_USERNAME}: unisciti per non perderti niente!\n"
-        "Oppure usa /promemoria_on per riceverli qui, in privato o in un gruppo.\n\n"
+        f"sul canale {CHANNEL_USERNAME}: unisciti per non perderti niente!\n\n"
         "Usa /prossima_scadenza per sapere quanto tempo ti resta, "
         "oppure /help per l'elenco dei comandi."
     )
@@ -32,7 +31,7 @@ def start(reminder_offsets: Sequence[timedelta]) -> str:
 
 def help_() -> str:
     return (
-        "Ecco il regolamento, mister:\n"
+        "Ecco cosa posso fare:\n"
         "• /prossima_scadenza — data e ora della prossima scadenza e tempo rimanente\n"
         "• /promemoria_on — attiva i promemoria in questa chat\n"
         "• /promemoria_off — disattiva i promemoria in questa chat\n"
@@ -57,7 +56,7 @@ def next_deadline(round_: int, deadline: datetime, now: datetime) -> str:
         f"📅 <b>Giornata {round_}</b>\n"
         f"⏰ Scadenza formazioni: <b>{fmt.format_date(deadline)} "
         f"alle {fmt.format_time(deadline)}</b>\n\n"
-        f"Hai ancora <b>{fmt.format_remaining(deadline, now)}</b> per schierare la formazione ⚽"
+        f"Hai ancora <b>{fmt.format_remaining(deadline, now)}</b> per schierare la formazione."
     )
 
 
@@ -161,38 +160,37 @@ def unknown_command() -> str:
     return "Comando non riconosciuto. Usa /help per l'elenco dei comandi."
 
 
-def _offsets_line(reminder_offsets: Sequence[timedelta]) -> str:
-    return fmt.join_list([fmt.format_duration(offset) for offset in reminder_offsets])
+def _offsets_list(reminder_offsets: Sequence[timedelta]) -> str:
+    """Bullet list, one reminder offset per line."""
+    return "\n".join(f"• <b>{fmt.format_duration(offset)}</b>" for offset in reminder_offsets)
 
 
 def subscription_enabled(reminder_offsets: Sequence[timedelta]) -> str:
     return (
         "✅ Promemoria attivati in questa chat, mister!\n"
-        f"Ti scriverò <b>{_offsets_line(reminder_offsets)}</b> prima di ogni scadenza.\n\n"
-        "Usa /promemoria_off per disattivarli."
+        f"Arrivano prima di ogni scadenza:\n{_offsets_list(reminder_offsets)}"
     )
 
 
 def subscription_already_enabled(reminder_offsets: Sequence[timedelta]) -> str:
     return (
         "Va già tutto bene: i promemoria sono già attivi in questa chat, arrivano "
-        f"<b>{_offsets_line(reminder_offsets)}</b> prima di ogni scadenza."
+        f"prima di ogni scadenza:\n{_offsets_list(reminder_offsets)}"
     )
 
 
 def subscription_disabled() -> str:
-    return "🔕 Promemoria disattivati in questa chat. Se ti penti, /promemoria_on ti aspetta 😏"
+    return "🔕 Promemoria disattivati in questa chat. Se ti penti, /promemoria ti aspetta 😏"
 
 
 def subscription_not_enabled() -> str:
-    return "I promemoria non sono ancora attivi in questa chat: usa /promemoria_on per svegliarli."
+    return "I promemoria non sono ancora attivi in questa chat."
 
 
 def subscription_status(reminder_offsets: Sequence[timedelta]) -> str:
     return (
-        "🔔 Promemoria <b>attivi</b> in questa chat: arrivano "
-        f"<b>{_offsets_line(reminder_offsets)}</b> prima di ogni scadenza.\n\n"
-        "Usa /promemoria_off per disattivarli."
+        "🔔 Promemoria <b>attivi</b> in questa chat, arrivano "
+        f"prima di ogni scadenza:\n{_offsets_list(reminder_offsets)}"
     )
 
 
@@ -202,7 +200,8 @@ def admin_only() -> str:
 
 def offsets_usage(current: Sequence[timedelta] | None) -> str:
     status = (
-        f"Attualmente arrivano <b>{_offsets_line(current)}</b> prima di ogni scadenza.\n\n"
+        f"Attualmente sono attivi questi promemoria prima della scadenza:\n"
+        f"{_offsets_list(current)}\n\n"
         if current
         else "I promemoria non sono ancora attivi in questa chat.\n\n"
     )
@@ -247,13 +246,13 @@ def offsets_updated(reminder_offsets: Sequence[timedelta], *, newly_subscribed: 
         if newly_subscribed
         else "✅ Orari dei promemoria aggiornati!\n"
     )
-    return f"{intro}Ti scriverò <b>{_offsets_line(reminder_offsets)}</b> prima di ogni scadenza."
+    return f"{intro}Arrivano prima di ogni scadenza:\n{_offsets_list(reminder_offsets)}"
 
 
 def offsets_reset(reminder_offsets: Sequence[timedelta]) -> str:
     return (
         "↩️ Orari dei promemoria ripristinati ai valori predefiniti.\n"
-        f"Ti scriverò <b>{_offsets_line(reminder_offsets)}</b> prima di ogni scadenza."
+        f"Arrivano prima di ogni scadenza:\n{_offsets_list(reminder_offsets)}"
     )
 
 

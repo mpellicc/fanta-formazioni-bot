@@ -178,9 +178,10 @@ Reminder:
 >
 > **After:** 🚨 <b>Mister, la formazione non si schiera da sola!</b> 🚨 … Ancora <b>1 giorno e 3 ore</b>: niente scuse e niente titolari a sorpresa in panchina 😉
 
-Start (⚽ marks the football/lineup theme on the identity line):
+Start (⚽ marks the football/lineup theme on the identity line — moved after the
+bot's name per the 2026-07-10 feedback pass, see Amendment below):
 
-> **After:** Ciao, mister! ⚽ Sono <b>FantaFormazioni Bot</b> e ti tengo sveglio prima di ogni scadenza, così non schieri più mezza squadra in panchina.
+> **After:** Ciao, mister! Sono <b>Fanta Formazioni Bot</b> ⚽ e ti tengo sveglio prima di ogni scadenza, così non schieri più mezza squadra in panchina.
 
 Reminder split (Decision 9) — one early pool variant vs the fixed last-call:
 
@@ -241,3 +242,65 @@ against these rules.
   `keyboards.py`" (Decision 10) to match.
 - This ADR is the reference for any future user-facing copy; new strings follow
   its lexicon, emoji convention, and the information-before-the-joke guardrail.
+
+## Amendment (2026-07-10): first manual-testing feedback pass
+
+Matteo's first read-through of the rewritten copy (still pre-merge) produced
+concrete notes, applied as follow-up edits:
+
+**1. Legacy vs. promoted commands.** `/promemoria_on`, `/promemoria_off`, and
+`/personalizza_orari` *with raw arguments* are the pre-ADR-0015 text-only
+interface; the inline-keyboard flows (`/promemoria`'s toggle button,
+`/personalizza_orari`'s grid, `/start`'s toggle) are what the bot now promotes.
+Going forward, prose outside `/help` avoids naming a legacy command as the
+suggested action — `/help` remains the one place that lists every command
+explicitly, since it's the technical reference surface. Where a message needs
+to point somewhere, it points to the promoted command (`/promemoria`, not
+`/promemoria_on`/`/promemoria_off`) or drops the explicit command entirely
+when a button is already visible on the same message. Concretely:
+`subscription_disabled()`'s joke keeps its 😏 but now redirects to
+`/promemoria` instead of `/promemoria_on`; `subscription_not_enabled()` drops
+its call-to-action outright (most of its call sites already render a toggle
+button alongside it); `subscription_enabled()`/`subscription_status()` drop
+their trailing "usa /promemoria_off" line for the same reason; `start()` drops
+its "oppure usa /promemoria_on" sentence since the subscribe/unsubscribe
+button sits right below it in the same message.
+
+**2. `/help` dials back to purely informational.** As the one surface meant to
+read like technical reference rather than personality, its intro reverts from
+"Ecco il regolamento, mister" to the plain "Ecco cosa posso fare" — no
+lexicon, no vocative, matching Decision 2's "cold messages stay informative"
+more strictly than the rest of the voice.
+
+**3. Reminder-offset lists render as an actual bullet list, not inline
+prose.** Every message that shows a chat's configured reminder offsets
+(`subscription_enabled`, `subscription_already_enabled`, `subscription_status`,
+`offsets_usage`, `offsets_updated`, `offsets_reset`) switches from one
+`fmt.join_list`-joined sentence ("arrivano **24 ore, 1 ora e 5 minuti**") to a
+lead-in line plus a `•`-per-line list (Telegram HTML has no real `<ul>`/`<li>`,
+so plain-text bullets are the only option, matching the pattern `/help`
+already used for its command list). `_offsets_line` is replaced by
+`_offsets_list`, used everywhere the old helper was.
+
+**4. `format_remaining` (`format.py`) now scales past 7 days** — amending
+Decision 7's claim that "no behavioural change is planned there": weeks (7
+days) and months (a flat 30-day approximation, display-only, never used for
+scheduling) become the top unit for deadlines further out, followed by up to
+two of the existing day/hour/minute units for the remainder, e.g. "1 mese, 12
+giorni e 23 ore" or "2 settimane e 14 ore"; below 7 days, output is byte-for-byte
+unchanged (verified against the pre-existing `test_format_remaining_two_largest_units`
+without editing it). `next_deadline()` and `reminder()`'s callers get this
+automatically since both already call `fmt.format_remaining`. `next_deadline()`
+also drops its trailing ⚽ (Matteo: "for the rest, remove the ball" — the
+football theme is already carried by 📅/⏰ there, per Decision 4a's own rule
+that ⚽ only marks the theme where those two don't already cover it).
+
+**5. `/start`'s ⚽ moves after "Sono Fanta Formazioni Bot"**, not before, and
+the bot's display name is spelled with a space — "Fanta Formazioni Bot" — a
+branding change decided during this same session (fixed opportunistically
+wherever prose is touched from here on, not a repo-wide sweep).
+
+No handler, model, or scheduling changes; `config.py`/`format.py` gain no new
+settings from this amendment (only the one already added in Decision 9). All
+four checks green; `test_format.py` needed no edits since the sub-7-day
+behaviour it pins is unchanged.
