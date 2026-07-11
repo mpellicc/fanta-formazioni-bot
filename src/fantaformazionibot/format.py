@@ -39,18 +39,35 @@ def format_time(dt: datetime) -> str:
 
 
 def format_remaining(deadline: datetime, now: datetime) -> str:
-    """Remaining time in the two largest non-zero units, e.g. '1 giorno e 3 ore'."""
+    """Remaining time, e.g. '1 giorno e 3 ore'.
+
+    Past 7 days, a coarser top unit (week, or month past 30 days — a flat 30-day
+    approximation, display-only) is shown first, followed by up to two of the
+    existing day/hour/minute units for the remainder, e.g. '1 mese, 12 giorni e 23
+    ore' or '2 settimane e 14 ore'. Below 7 days, behaviour is unchanged: the two
+    largest non-zero day/hour/minute units.
+    """
     seconds = max(int((deadline - now).total_seconds()), 0)
+    total_days = seconds // 86400
     parts: list[str] = []
+    cap = 2
+    if total_days >= 30:
+        months, seconds = divmod(seconds, 2592000)
+        parts.append(f"{months} {'mese' if months == 1 else 'mesi'}")
+        cap = 3
+    elif total_days >= 7:
+        weeks, seconds = divmod(seconds, 604800)
+        parts.append(f"{weeks} {'settimana' if weeks == 1 else 'settimane'}")
+        cap = 3
     for unit_seconds, singular, plural in _UNITS:
         amount, seconds = divmod(seconds, unit_seconds)
         if amount > 0:
             parts.append(f"{amount} {singular if amount == 1 else plural}")
-        if len(parts) == 2:
+        if len(parts) == cap:
             break
     if not parts:
         return "meno di 1 minuto"
-    return " e ".join(parts)
+    return join_list(parts)
 
 
 def format_duration(duration: timedelta) -> str:
