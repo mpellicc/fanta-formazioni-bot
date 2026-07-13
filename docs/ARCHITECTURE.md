@@ -1,6 +1,6 @@
 # Architecture
 
-FantaFormazioni Bot is a single-process Telegram bot (long polling) that reminds a Telegram channel to set the Fantacalcio lineup before each Serie A matchday deadline.
+Fanta Formazioni Bot is a single-process Telegram bot (long polling) that reminds a Telegram channel to set the Fantacalcio lineup before each Serie A matchday deadline.
 
 Design decisions and their rationale live in [docs/adr/](adr/). This file describes how the pieces fit together.
 

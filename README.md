@@ -1,4 +1,4 @@
-# FantaFormazioni Bot
+# Fanta Formazioni Bot
 
 A Telegram bot that reminds you to set your **Fantacalcio** lineup before each Serie A matchday deadline.
 
