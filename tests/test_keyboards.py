@@ -18,6 +18,18 @@ def test_mask_from_offsets_ignores_non_preset_values() -> None:
     assert keyboards.offsets_from_mask(mask) == (timedelta(hours=24),)
 
 
+def test_non_preset_seconds_filters_out_presets() -> None:
+    preset_seconds = int(timedelta(hours=24).total_seconds())
+    custom_seconds = int(timedelta(minutes=90).total_seconds())
+    result = keyboards.non_preset_seconds((preset_seconds, custom_seconds))
+    assert result == (custom_seconds,)
+
+
+def test_non_preset_seconds_empty_when_all_presets() -> None:
+    preset_seconds = tuple(int(preset.total_seconds()) for preset in keyboards.OFFSET_PRESETS)
+    assert keyboards.non_preset_seconds(preset_seconds) == ()
+
+
 def test_offsets_from_mask_empty() -> None:
     assert keyboards.offsets_from_mask(0) == ()
 

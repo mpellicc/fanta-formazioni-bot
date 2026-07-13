@@ -11,6 +11,7 @@ save/cancel/timeout/back.
 
 import contextlib
 import re
+from datetime import timedelta
 
 from telegram import CallbackQuery, Chat, ForceReply, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
@@ -138,18 +139,26 @@ async def save_offsets_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
     mask = keyboards.decode_save(query.data or "")
-    offsets = keyboards.offsets_from_mask(mask)
-    if not offsets:
+    preset_offsets = keyboards.offsets_from_mask(mask)
+
+    repository: Repository = context.bot_data["repository"]
+    existing = repository.get_subscription(chat.id)
+    preserved_seconds = (
+        keyboards.non_preset_seconds(existing.reminder_offsets) if existing is not None else ()
+    )
+    merged = tuple(
+        sorted({*preset_offsets, *(timedelta(seconds=s) for s in preserved_seconds)}, reverse=True)
+    )
+    if not merged:
         await query.answer(messages.offsets_selection_empty(), show_alert=True)
         return
 
-    repository: Repository = context.bot_data["repository"]
-    newly_subscribed = set_offsets(chat, offsets, repository, context.application)
+    newly_subscribed = set_offsets(chat, merged, repository, context.application)
 
     await query.answer()
     await _edit_text(
         query,
-        messages.offsets_updated(offsets, newly_subscribed=newly_subscribed),
+        messages.offsets_updated(merged, newly_subscribed=newly_subscribed),
         keyboards.build_offsets_keyboard(mask),
     )
 

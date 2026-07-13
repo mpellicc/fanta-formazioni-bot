@@ -61,6 +61,16 @@ def offsets_from_mask(mask: int) -> tuple[timedelta, ...]:
     return tuple(preset for index, preset in enumerate(OFFSET_PRESETS) if mask & (1 << index))
 
 
+def non_preset_seconds(offsets_seconds: Sequence[int]) -> tuple[int, ...]:
+    """Offsets (seconds) in offsets_seconds that aren't one of OFFSET_PRESETS.
+
+    Used to preserve free-form custom offsets across a grid Salva, which can
+    only represent presets (ADR 0020).
+    """
+    preset_seconds = {int(preset.total_seconds()) for preset in OFFSET_PRESETS}
+    return tuple(seconds for seconds in offsets_seconds if seconds not in preset_seconds)
+
+
 def toggle_bit(mask: int, index: int) -> int:
     return mask ^ (1 << index)
 
