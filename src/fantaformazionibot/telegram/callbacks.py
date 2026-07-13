@@ -223,6 +223,25 @@ async def _restore_grid(context: ContextTypes.DEFAULT_TYPE, *, mask: int) -> Non
             await context.bot.delete_message(chat_id=chat_id, message_id=prompt_message_id)
 
 
+async def _close_custom_offsets(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """After a successful custom-offset save, delete the original grid message (and the
+    prompt) instead of reopening it: its mask can't represent the just-saved value, so
+    leaving it interactive risks a later Salva silently discarding it (ADR 0019)."""
+    assert context.user_data is not None
+    chat_id = context.user_data.pop(_GRID_CHAT_ID, None)
+    message_id = context.user_data.pop(_GRID_MESSAGE_ID, None)
+    prompt_message_id = context.user_data.pop(_PROMPT_MESSAGE_ID, None)
+    context.user_data.pop(_GRID_MASK, None)
+    if chat_id is None:
+        return
+    if message_id is not None:
+        with contextlib.suppress(BadRequest):
+            await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
+    if prompt_message_id is not None:
+        with contextlib.suppress(BadRequest):
+            await context.bot.delete_message(chat_id=chat_id, message_id=prompt_message_id)
+
+
 async def receive_custom_offsets(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     message = update.message
     if message is None or message.text is None or update.effective_chat is None:
@@ -244,8 +263,7 @@ async def receive_custom_offsets(update: Update, context: ContextTypes.DEFAULT_T
         parse_mode=ParseMode.HTML,
     )
 
-    mask = keyboards.mask_from_offsets(tuple(int(offset.total_seconds()) for offset in offsets))
-    await _restore_grid(context, mask=mask)
+    await _close_custom_offsets(context)
     return ConversationHandler.END
 
 
