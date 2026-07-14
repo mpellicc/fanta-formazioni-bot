@@ -54,6 +54,15 @@ class Repository:
                 )
                 """
             )
+            self._conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS lineup_confirmations (
+                    chat_id INTEGER NOT NULL,
+                    round INTEGER NOT NULL,
+                    UNIQUE (chat_id, round)
+                )
+                """
+            )
 
     # --- matchdays ---
 
@@ -191,3 +200,28 @@ class Repository:
                 """,
                 (chat_id, round_, offset_seconds),
             )
+
+    # --- lineup confirmations ---
+
+    def is_lineup_confirmed(self, chat_id: int, round_: int) -> bool:
+        row = self._conn.execute(
+            "SELECT 1 FROM lineup_confirmations WHERE chat_id = ? AND round = ?",
+            (chat_id, round_),
+        ).fetchone()
+        return row is not None
+
+    def mark_lineup_confirmed(self, chat_id: int, round_: int) -> None:
+        with self._conn:
+            self._conn.execute(
+                "INSERT OR IGNORE INTO lineup_confirmations (chat_id, round) VALUES (?, ?)",
+                (chat_id, round_),
+            )
+
+    def unmark_lineup_confirmed(self, chat_id: int, round_: int) -> bool:
+        """Delete the confirmation if present; report whether one was deleted."""
+        with self._conn:
+            cursor = self._conn.execute(
+                "DELETE FROM lineup_confirmations WHERE chat_id = ? AND round = ?",
+                (chat_id, round_),
+            )
+        return cursor.rowcount > 0

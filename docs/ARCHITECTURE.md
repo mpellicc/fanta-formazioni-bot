@@ -1,6 +1,6 @@
 # Architecture
 
-FantaFormazioni Bot is a single-process Telegram bot (long polling) that reminds a Telegram channel to set the Fantacalcio lineup before each Serie A matchday deadline.
+Fanta Formazioni Bot is a single-process Telegram bot (long polling) that reminds a Telegram channel to set the Fantacalcio lineup before each Serie A matchday deadline.
 
 Design decisions and their rationale live in [docs/adr/](adr/). This file describes how the pieces fit together.
 
@@ -24,8 +24,9 @@ src/fantaformazionibot/
     jobs.py              PTB jobs: daily calendar refresh, reminder send, (re)scheduling
   telegram/
     commands.py          /start /help /prossima_scadenza /promemoria_on /promemoria_off
-                         /promemoria /personalizza_orari + unknown-command fallback;
-                         subscribe/unsubscribe/set_offsets are shared with callbacks.py
+                         /promemoria /personalizza_orari /ho_schierato + unknown-command
+                         fallback; subscribe/unsubscribe/set_offsets/confirm_lineup/
+                         undo_lineup_confirmation are shared with callbacks.py
     keyboards.py         inline keyboard builders + callback_data codec (pure, ADR 0015)
     callbacks.py         CallbackQueryHandler entry points + the "Personalizzati"
                          ConversationHandler (free-form offset input, ADR 0015)
@@ -83,23 +84,40 @@ member can press a button.
 Each reminder job carries `(chat_id, round, offset_seconds)`. On fire it:
 
 1. re-checks `sent_reminders` (dedupe across restarts/reschedules);
-2. sends the reminder message with the deadline time and remaining duration;
-3. records the reminder in `sent_reminders`.
+2. re-checks `lineup_confirmations` (skip if the chat already confirmed this round's lineup, ADR 0021);
+3. sends the reminder message with the deadline time and remaining duration —
+   private chats also get a "✅ Ho schierato" button;
+4. records the reminder in `sent_reminders`.
 
 Reminders whose time is already in the past at scheduling time are skipped, never sent late.
+
+### Confirming a lineup — "Ho schierato" (ADR 0021)
+
+Private chats only (a group/channel subscription is shared by several
+distinct managers — see ADR 0021 for why that rules out a correct group
+version for now). `/ho_schierato` and the "✅ Ho schierato" button on
+reminder messages both call `commands.confirm_lineup`, which inserts a
+`lineup_confirmations` row for `(chat_id, round)` and calls
+`reschedule_reminders` — the same full drop-and-rebuild used by
+subscribe/unsubscribe/set_offsets, which now also skips any round already in
+`lineup_confirmations`. A "↩️ Annulla conferma" button (`commands.undo_lineup_confirmation`)
+deletes the row and reschedules again, resuming the round's remaining
+reminders. Confirmations are per-round, so round N+1 is unaffected and needs
+no explicit reset.
 
 ## Database schema
 
 ```sql
-matchdays      (round INTEGER PRIMARY KEY, kickoff_utc TEXT NOT NULL)          -- real kickoff, ISO 8601 UTC
-subscriptions  (chat_id INTEGER PRIMARY KEY, chat_type TEXT NOT NULL,
-                reminder_offsets TEXT NOT NULL,                                -- JSON array of seconds
-                origin TEXT NOT NULL DEFAULT 'env')                            -- 'env' (config-seeded) | 'user'
-sent_reminders (chat_id INTEGER, round INTEGER, offset_seconds INTEGER,
-                UNIQUE(chat_id, round, offset_seconds))
+matchdays            (round INTEGER PRIMARY KEY, kickoff_utc TEXT NOT NULL)          -- real kickoff, ISO 8601 UTC
+subscriptions         (chat_id INTEGER PRIMARY KEY, chat_type TEXT NOT NULL,
+                       reminder_offsets TEXT NOT NULL,                               -- JSON array of seconds
+                       origin TEXT NOT NULL DEFAULT 'env')                           -- 'env' (config-seeded) | 'user'
+sent_reminders        (chat_id INTEGER, round INTEGER, offset_seconds INTEGER,
+                       UNIQUE(chat_id, round, offset_seconds))
+lineup_confirmations  (chat_id INTEGER, round INTEGER, UNIQUE(chat_id, round))       -- ADR 0021
 ```
 
-`matchdays` fully regenerates from the calendar feed. `sent_reminders` is disposable (worst case after deletion: one duplicate reminder). `subscriptions` is **not** regenerable: it holds every user/group's `/promemoria_on` state and (since ADR 0013) custom `reminder_offsets` — back it up before anything destructive.
+`matchdays` fully regenerates from the calendar feed. `sent_reminders` and `lineup_confirmations` are disposable (worst case after deletion: a duplicate reminder, or a round's reminders un-silencing). `subscriptions` is **not** regenerable: it holds every user/group's `/promemoria_on` state and (since ADR 0013) custom `reminder_offsets` — back it up before anything destructive.
 
 ## Datetime policy
 

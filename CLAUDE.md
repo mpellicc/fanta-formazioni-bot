@@ -1,4 +1,4 @@
-# FantaFormazioni Bot — agent guide
+# Fanta Formazioni Bot — agent guide
 
 Telegram bot (Python 3.13, python-telegram-bot ~22.8, long polling) that reminds a Telegram channel to set the Fantacalcio lineup before each Serie A matchday deadline.
 

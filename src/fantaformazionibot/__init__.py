@@ -1,1 +1,1 @@
-"""FantaFormazioni Bot: reminds you to set your Fantacalcio lineup."""
+"""Fanta Formazioni Bot: reminds you to set your Fantacalcio lineup."""

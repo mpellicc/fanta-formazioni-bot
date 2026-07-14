@@ -39,6 +39,8 @@ def help_() -> str:
         "con bottone per attivarli/disattivarli\n"
         "• /personalizza_orari — scegli gli orari dei promemoria da una tastiera di caselle, "
         "oppure passa direttamente gli orari come argomenti\n"
+        "• /ho_schierato — silenzia i promemoria residui della prossima giornata "
+        "(solo in chat privata)\n"
         "• /start — presentazione del bot\n"
         "• /help — questo messaggio\n\n"
         "Nella tastiera di /personalizza_orari, il bottone "
@@ -154,6 +156,38 @@ def reminder(
     date = fmt.format_date(deadline)
     variant = _REMINDER_POOL[_reminder_pool_index(round_, offset_seconds)]
     return variant(round_, date, time, remaining)
+
+
+def lineup_confirmed(round_: int) -> str:
+    return (
+        f"✅ Segnato: hai schierato per la <b>Giornata {round_}</b>.\n"
+        "Niente più promemoria per questa giornata, mister — si riattivano da soli alla prossima."
+    )
+
+
+def lineup_already_confirmed(round_: int) -> str:
+    return (
+        f"Avevi già segnato la <b>Giornata {round_}</b> come schierata, mister: "
+        "i promemoria restano silenziati."
+    )
+
+
+def lineup_confirmation_cancelled(round_: int) -> str:
+    return (
+        f"↩️ Annullato: la <b>Giornata {round_}</b> non è più segnata come schierata, "
+        "i promemoria residui riprendono."
+    )
+
+
+def lineup_not_confirmed() -> str:
+    return "Non risultava nessuna conferma da annullare, mister."
+
+
+def lineup_private_only() -> str:
+    return (
+        "Questa funzione è disponibile solo in chat privata per ora, mister: "
+        "scrivimi in privato per usarla."
+    )
 
 
 def unknown_command() -> str:

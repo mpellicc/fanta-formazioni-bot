@@ -66,6 +66,57 @@ async def next_deadline_command(update: Update, context: ContextTypes.DEFAULT_TY
     )
 
 
+def confirm_lineup(chat_id: int, round_: int, repository: Repository, application: BotApp) -> bool:
+    """Core of /ho_schierato, shared with the lineup:confirm: callback. Returns whether it was
+    already confirmed (idempotent: a repeat confirm is not an error)."""
+    already = repository.is_lineup_confirmed(chat_id, round_)
+    if not already:
+        repository.mark_lineup_confirmed(chat_id, round_)
+        reschedule_reminders(application)
+    return already
+
+
+def undo_lineup_confirmation(
+    chat_id: int, round_: int, repository: Repository, application: BotApp
+) -> bool:
+    """Core of the "Annulla conferma" button. Returns whether a confirmation was removed."""
+    deleted = repository.unmark_lineup_confirmed(chat_id, round_)
+    if deleted:
+        reschedule_reminders(application)
+    return deleted
+
+
+async def lineup_confirmed_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.message is None or update.effective_chat is None:
+        return
+    chat = update.effective_chat
+    if chat.type != ChatType.PRIVATE:
+        await update.message.reply_text(messages.lineup_private_only(), parse_mode=ParseMode.HTML)
+        return
+
+    settings: Settings = context.bot_data["settings"]
+    repository: Repository = context.bot_data["repository"]
+    now = datetime.now(UTC)
+    upcoming = planner.next_deadline(repository.get_matchdays(), settings.deadline_margin, now)
+    if upcoming is None:
+        await update.message.reply_text(messages.no_upcoming_deadline(), parse_mode=ParseMode.HTML)
+        return
+
+    matchday, _ = upcoming
+    already = confirm_lineup(chat.id, matchday.round, repository, context.application)
+
+    text = (
+        messages.lineup_already_confirmed(matchday.round)
+        if already
+        else messages.lineup_confirmed(matchday.round)
+    )
+    await update.message.reply_text(
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboards.build_lineup_confirmed_keyboard(matchday.round),
+    )
+
+
 async def user_may_manage_subscription(
     user_id: int, chat: Chat, context: ContextTypes.DEFAULT_TYPE
 ) -> bool:

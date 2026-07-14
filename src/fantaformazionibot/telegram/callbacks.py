@@ -11,9 +11,10 @@ save/cancel/timeout/back.
 
 import contextlib
 import re
+from datetime import timedelta
 
 from telegram import CallbackQuery, Chat, ForceReply, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
+from telegram.constants import ChatType, ParseMode
 from telegram.error import BadRequest
 from telegram.ext import (
     CallbackQueryHandler,
@@ -31,9 +32,11 @@ from fantaformazionibot.telegram import keyboards, messages
 from fantaformazionibot.telegram.commands import (
     OFFSETS_ERROR_MESSAGES,
     OffsetsParseError,
+    confirm_lineup,
     parse_offsets_args,
     set_offsets,
     subscribe,
+    undo_lineup_confirmation,
     unsubscribe,
     user_may_manage_subscription,
 )
@@ -116,6 +119,45 @@ async def unsubscribe_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     await _edit_text(query, text, keyboards.build_subscription_keyboard(subscribed=False))
 
 
+async def lineup_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = await _gate(update, context)
+    if query is None or query.message is None:
+        return
+    chat = query.message.chat
+    if chat.type != ChatType.PRIVATE:
+        await query.answer(messages.lineup_private_only(), show_alert=True)
+        return
+
+    round_ = keyboards.decode_lineup_confirm(query.data or "")
+    repository: Repository = context.bot_data["repository"]
+    already = confirm_lineup(chat.id, round_, repository, context.application)
+
+    await query.answer()
+    text = (
+        messages.lineup_already_confirmed(round_) if already else messages.lineup_confirmed(round_)
+    )
+    await _edit_text(query, text, keyboards.build_lineup_confirmed_keyboard(round_))
+
+
+async def lineup_undo_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = await _gate(update, context)
+    if query is None or query.message is None:
+        return
+    chat = query.message.chat
+
+    round_ = keyboards.decode_lineup_undo(query.data or "")
+    repository: Repository = context.bot_data["repository"]
+    deleted = undo_lineup_confirmation(chat.id, round_, repository, context.application)
+
+    await query.answer()
+    text = (
+        messages.lineup_confirmation_cancelled(round_)
+        if deleted
+        else messages.lineup_not_confirmed()
+    )
+    await _edit_text(query, text, keyboards.build_lineup_confirm_keyboard(round_))
+
+
 async def toggle_offset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = await _gate(update, context)
     if query is None or query.message is None:
@@ -138,18 +180,26 @@ async def save_offsets_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
     mask = keyboards.decode_save(query.data or "")
-    offsets = keyboards.offsets_from_mask(mask)
-    if not offsets:
+    preset_offsets = keyboards.offsets_from_mask(mask)
+
+    repository: Repository = context.bot_data["repository"]
+    existing = repository.get_subscription(chat.id)
+    preserved_seconds = (
+        keyboards.non_preset_seconds(existing.reminder_offsets) if existing is not None else ()
+    )
+    merged = tuple(
+        sorted({*preset_offsets, *(timedelta(seconds=s) for s in preserved_seconds)}, reverse=True)
+    )
+    if not merged:
         await query.answer(messages.offsets_selection_empty(), show_alert=True)
         return
 
-    repository: Repository = context.bot_data["repository"]
-    newly_subscribed = set_offsets(chat, offsets, repository, context.application)
+    newly_subscribed = set_offsets(chat, merged, repository, context.application)
 
     await query.answer()
     await _edit_text(
         query,
-        messages.offsets_updated(offsets, newly_subscribed=newly_subscribed),
+        messages.offsets_updated(merged, newly_subscribed=newly_subscribed),
         keyboards.build_offsets_keyboard(mask),
     )
 
@@ -353,3 +403,13 @@ def register(application: BotApp) -> None:
         )
     )
     application.add_handler(custom_offsets_conversation)
+    application.add_handler(
+        CallbackQueryHandler(
+            lineup_confirm_callback, pattern=rf"^{re.escape(keyboards.CB_LINEUP_CONFIRM_PREFIX)}"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            lineup_undo_callback, pattern=rf"^{re.escape(keyboards.CB_LINEUP_UNDO_PREFIX)}"
+        )
+    )
