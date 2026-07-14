@@ -19,6 +19,8 @@ ACTION_SAVE = "Salva"
 ACTION_DEFAULTS = "Predefiniti"
 ACTION_CUSTOM = "Personalizzati"
 ACTION_BACK = "Indietro"
+ACTION_LINEUP_CONFIRM = "Ho schierato"
+ACTION_LINEUP_UNDO = "Annulla conferma"
 
 OFFSET_PRESETS: tuple[timedelta, ...] = (
     timedelta(days=2),
@@ -38,6 +40,8 @@ CB_TOGGLE_PREFIX = "off:t:"
 CB_SAVE_PREFIX = "off:save:"
 CB_CUSTOM_PREFIX = "off:custom:"
 CB_BACK_PREFIX = "off:back:"
+CB_LINEUP_CONFIRM_PREFIX = "lineup:confirm:"
+CB_LINEUP_UNDO_PREFIX = "lineup:undo:"
 
 
 def _decode_masked(prefix: str, data: str) -> int:
@@ -148,4 +152,34 @@ def build_offsets_keyboard(mask: int) -> InlineKeyboardMarkup:
 
 def build_offsets_waiting_keyboard(mask: int) -> InlineKeyboardMarkup:
     button = InlineKeyboardButton(f"⬅️ {ACTION_BACK}", callback_data=encode_back(mask))
+    return InlineKeyboardMarkup([[button]])
+
+
+def encode_lineup_confirm(round_: int) -> str:
+    return f"{CB_LINEUP_CONFIRM_PREFIX}{round_}"
+
+
+def decode_lineup_confirm(data: str) -> int:
+    return _decode_masked(CB_LINEUP_CONFIRM_PREFIX, data)
+
+
+def encode_lineup_undo(round_: int) -> str:
+    return f"{CB_LINEUP_UNDO_PREFIX}{round_}"
+
+
+def decode_lineup_undo(data: str) -> int:
+    return _decode_masked(CB_LINEUP_UNDO_PREFIX, data)
+
+
+def build_lineup_confirm_keyboard(round_: int) -> InlineKeyboardMarkup:
+    button = InlineKeyboardButton(
+        f"✅ {ACTION_LINEUP_CONFIRM}", callback_data=encode_lineup_confirm(round_)
+    )
+    return InlineKeyboardMarkup([[button]])
+
+
+def build_lineup_confirmed_keyboard(round_: int) -> InlineKeyboardMarkup:
+    button = InlineKeyboardButton(
+        f"↩️ {ACTION_LINEUP_UNDO}", callback_data=encode_lineup_undo(round_)
+    )
     return InlineKeyboardMarkup([[button]])

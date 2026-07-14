@@ -11,6 +11,7 @@ from fantaformazionibot.storage.repository import Repository
 from fantaformazionibot.telegram import callbacks
 from fantaformazionibot.telegram.commands import (
     help_command,
+    lineup_confirmed_command,
     next_deadline_command,
     set_offsets_command,
     start_command,
@@ -73,6 +74,7 @@ def run() -> None:
     application.add_handler(CommandHandler("promemoria_off", unsubscribe_command, filters=gate))
     application.add_handler(CommandHandler("promemoria", subscription_status_command, filters=gate))
     application.add_handler(CommandHandler("personalizza_orari", set_offsets_command, filters=gate))
+    application.add_handler(CommandHandler("ho_schierato", lineup_confirmed_command, filters=gate))
     callbacks.register(application)
     application.add_handler(MessageHandler(unknown_filter, unknown_command))
     application.add_error_handler(error_handler)

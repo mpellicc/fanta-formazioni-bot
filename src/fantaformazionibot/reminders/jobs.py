@@ -4,7 +4,7 @@ import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
-from telegram.constants import ParseMode
+from telegram.constants import ChatType, ParseMode
 from telegram.ext import ContextTypes
 
 from fantaformazionibot.apptypes import BotApp
@@ -13,7 +13,7 @@ from fantaformazionibot.config import Settings
 from fantaformazionibot.models import Matchday, PlannedReminder
 from fantaformazionibot.reminders import planner
 from fantaformazionibot.storage.repository import Repository
-from fantaformazionibot.telegram import messages
+from fantaformazionibot.telegram import keyboards, messages
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +93,8 @@ def reschedule_reminders(application: BotApp) -> None:
     for reminder in plan:
         if repository.was_reminder_sent(reminder.chat_id, reminder.round, reminder.offset_seconds):
             continue
+        if repository.is_lineup_confirmed(reminder.chat_id, reminder.round):
+            continue
         job_queue.run_once(
             send_reminder_job,
             when=reminder.when,
@@ -115,6 +117,8 @@ async def send_reminder_job(context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if repository.was_reminder_sent(reminder.chat_id, reminder.round, reminder.offset_seconds):
         return
+    if repository.is_lineup_confirmed(reminder.chat_id, reminder.round):
+        return
 
     matchday = repository.get_matchday(reminder.round)
     if matchday is None:
@@ -123,6 +127,12 @@ async def send_reminder_job(context: ContextTypes.DEFAULT_TYPE) -> None:
 
     now = datetime.now(UTC)
     deadline = planner.deadline_for(matchday, settings.deadline_margin)
+    subscription = repository.get_subscription(reminder.chat_id)
+    reply_markup = (
+        keyboards.build_lineup_confirm_keyboard(reminder.round)
+        if subscription is not None and subscription.chat_type == ChatType.PRIVATE
+        else None
+    )
     await context.bot.send_message(
         chat_id=reminder.chat_id,
         text=messages.reminder(
@@ -133,6 +143,7 @@ async def send_reminder_job(context: ContextTypes.DEFAULT_TYPE) -> None:
             settings.urgent_reminder_threshold,
         ),
         parse_mode=ParseMode.HTML,
+        reply_markup=reply_markup,
     )
     repository.mark_reminder_sent(reminder.chat_id, reminder.round, reminder.offset_seconds)
     logger.info(

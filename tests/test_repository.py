@@ -95,3 +95,41 @@ def test_update_subscription_offsets_missing_row(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
 
     assert repository.update_subscription_offsets(12345, (3600,)) is False
+
+
+def test_is_lineup_confirmed_false_when_absent(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+
+    assert repository.is_lineup_confirmed(42, 7) is False
+
+
+def test_mark_lineup_confirmed_roundtrip(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.mark_lineup_confirmed(42, 7)
+
+    assert repository.is_lineup_confirmed(42, 7) is True
+    # a different round or chat is unaffected
+    assert repository.is_lineup_confirmed(42, 8) is False
+    assert repository.is_lineup_confirmed(43, 7) is False
+
+
+def test_mark_lineup_confirmed_is_idempotent(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.mark_lineup_confirmed(42, 7)
+    repository.mark_lineup_confirmed(42, 7)
+
+    assert repository.is_lineup_confirmed(42, 7) is True
+
+
+def test_unmark_lineup_confirmed_removes_row(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.mark_lineup_confirmed(42, 7)
+
+    assert repository.unmark_lineup_confirmed(42, 7) is True
+    assert repository.is_lineup_confirmed(42, 7) is False
+
+
+def test_unmark_lineup_confirmed_missing_row(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+
+    assert repository.unmark_lineup_confirmed(42, 7) is False

@@ -51,6 +51,8 @@ def test_toggle_bit_flips_and_is_its_own_inverse() -> None:
         (keyboards.encode_save, keyboards.decode_save, 5),
         (keyboards.encode_custom, keyboards.decode_custom, 5),
         (keyboards.encode_back, keyboards.decode_back, 5),
+        (keyboards.encode_lineup_confirm, keyboards.decode_lineup_confirm, 7),
+        (keyboards.encode_lineup_undo, keyboards.decode_lineup_undo, 7),
     ],
 )
 def test_masked_callback_data_roundtrips(encode: object, decode: object, value: int) -> None:
@@ -73,6 +75,16 @@ def test_decode_save_rejects_other_prefixes() -> None:
         keyboards.decode_save(keyboards.CB_SUBSCRIBE)
 
 
+def test_decode_lineup_confirm_rejects_other_prefixes() -> None:
+    with pytest.raises(ValueError):
+        keyboards.decode_lineup_confirm(keyboards.encode_lineup_undo(7))
+
+
+def test_decode_lineup_undo_rejects_other_prefixes() -> None:
+    with pytest.raises(ValueError):
+        keyboards.decode_lineup_undo(keyboards.encode_lineup_confirm(7))
+
+
 def test_build_offsets_keyboard_marks_checked_presets() -> None:
     mask = keyboards.mask_from_offsets((int(keyboards.OFFSET_PRESETS[0].total_seconds()),))
     markup = keyboards.build_offsets_keyboard(mask)
@@ -86,3 +98,15 @@ def test_build_subscription_keyboard_reflects_state() -> None:
     not_subscribed = keyboards.build_subscription_keyboard(subscribed=False)
     assert subscribed.inline_keyboard[0][0].callback_data == keyboards.CB_UNSUBSCRIBE
     assert not_subscribed.inline_keyboard[0][0].callback_data == keyboards.CB_SUBSCRIBE
+
+
+def test_build_lineup_confirm_keyboard_encodes_round() -> None:
+    markup = keyboards.build_lineup_confirm_keyboard(7)
+    button = markup.inline_keyboard[0][0]
+    assert button.callback_data == keyboards.encode_lineup_confirm(7)
+
+
+def test_build_lineup_confirmed_keyboard_encodes_round() -> None:
+    markup = keyboards.build_lineup_confirmed_keyboard(7)
+    button = markup.inline_keyboard[0][0]
+    assert button.callback_data == keyboards.encode_lineup_undo(7)
