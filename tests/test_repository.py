@@ -1,3 +1,5 @@
+import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 from fantaformazionibot.models import Subscription
@@ -14,6 +16,17 @@ USER_PRIVATE = Subscription(chat_id=42, chat_type="private", reminder_offsets=(3
 
 def _repository(tmp_path: Path) -> Repository:
     return Repository(tmp_path / "test.db")
+
+
+def _created_at(tmp_path: Path, chat_id: int) -> str | None:
+    conn = sqlite3.connect(tmp_path / "test.db")
+    try:
+        row = conn.execute(
+            "SELECT created_at FROM subscriptions WHERE chat_id = ?", (chat_id,)
+        ).fetchone()
+        return row[0] if row else None
+    finally:
+        conn.close()
 
 
 def test_upsert_and_get_subscriptions_roundtrip(tmp_path: Path) -> None:
@@ -133,3 +146,55 @@ def test_unmark_lineup_confirmed_missing_row(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
 
     assert repository.unmark_lineup_confirmed(42, 7) is False
+
+
+def test_upsert_sets_created_at_tz_aware_for_new_subscription(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.upsert_subscription(USER_PRIVATE)
+
+    created_at = _created_at(tmp_path, USER_PRIVATE.chat_id)
+    assert created_at is not None
+    assert datetime.fromisoformat(created_at).tzinfo is not None
+
+
+def test_upsert_on_existing_row_does_not_change_created_at(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.upsert_subscription(USER_PRIVATE)
+    original_created_at = _created_at(tmp_path, USER_PRIVATE.chat_id)
+
+    updated = Subscription(
+        chat_id=USER_PRIVATE.chat_id,
+        chat_type=USER_PRIVATE.chat_type,
+        reminder_offsets=(3600,),
+        origin=USER_PRIVATE.origin,
+    )
+    repository.upsert_subscription(updated)
+
+    assert _created_at(tmp_path, USER_PRIVATE.chat_id) == original_created_at
+
+
+def test_migration_adds_created_at_column_as_null_for_existing_rows(tmp_path: Path) -> None:
+    db_path = tmp_path / "test.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        """
+        CREATE TABLE subscriptions (
+            chat_id INTEGER PRIMARY KEY,
+            chat_type TEXT NOT NULL,
+            reminder_offsets TEXT NOT NULL,
+            origin TEXT NOT NULL DEFAULT 'env'
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO subscriptions (chat_id, chat_type, reminder_offsets, origin)"
+        " VALUES (-100, 'channel', '[86400]', 'env')"
+    )
+    conn.commit()
+    conn.close()
+
+    repository = Repository(db_path)
+
+    columns = {row[1] for row in repository._conn.execute("PRAGMA table_info(subscriptions)")}
+    assert "created_at" in columns
+    assert _created_at(tmp_path, -100) is None

@@ -34,7 +34,8 @@ class Repository:
                     chat_id INTEGER PRIMARY KEY,
                     chat_type TEXT NOT NULL,
                     reminder_offsets TEXT NOT NULL,
-                    origin TEXT NOT NULL DEFAULT 'env'
+                    origin TEXT NOT NULL DEFAULT 'env',
+                    created_at TEXT
                 )
                 """
             )
@@ -44,6 +45,10 @@ class Repository:
                 self._conn.execute(
                     "ALTER TABLE subscriptions ADD COLUMN origin TEXT NOT NULL DEFAULT 'env'"
                 )
+            # Pre-created_at databases: existing rows predate tracking, so leave them NULL
+            # rather than backfilling a fabricated join date (ADR 0022).
+            if "created_at" not in columns:
+                self._conn.execute("ALTER TABLE subscriptions ADD COLUMN created_at TEXT")
             self._conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS sent_reminders (
@@ -96,8 +101,8 @@ class Repository:
         with self._conn:
             self._conn.execute(
                 """
-                INSERT INTO subscriptions (chat_id, chat_type, reminder_offsets, origin)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO subscriptions (chat_id, chat_type, reminder_offsets, origin, created_at)
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT (chat_id) DO UPDATE SET
                     chat_type = excluded.chat_type,
                     reminder_offsets = excluded.reminder_offsets,
@@ -108,6 +113,7 @@ class Repository:
                     subscription.chat_type,
                     json.dumps(list(subscription.reminder_offsets)),
                     subscription.origin,
+                    datetime.now(UTC).isoformat(),
                 ),
             )
 
