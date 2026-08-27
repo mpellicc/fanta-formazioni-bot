@@ -191,7 +191,7 @@ async def _prune_dead_chat(
             logger.exception("Failed to report the dead channel to the debug chat")
         return
 
-    repository.delete_user_subscription(chat_id)
+    repository.prune_dead_subscription(chat_id)
     _cancel_reminders_for(context, chat_id)
     logger.warning("Subscription %d pruned: the chat no longer accepts our messages", chat_id)
 

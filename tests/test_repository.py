@@ -29,6 +29,21 @@ def _created_at(tmp_path: Path, chat_id: int) -> str | None:
         conn.close()
 
 
+def _events(tmp_path: Path, chat_id: int) -> list[tuple[str, str, str]]:
+    conn = sqlite3.connect(tmp_path / "test.db")
+    try:
+        return [
+            (event, chat_type, origin)
+            for event, chat_type, origin in conn.execute(
+                "SELECT event, chat_type, origin FROM subscription_events"
+                " WHERE chat_id = ? ORDER BY id",
+                (chat_id,),
+            )
+        ]
+    finally:
+        conn.close()
+
+
 def test_upsert_and_get_subscriptions_roundtrip(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
     repository.upsert_subscription(ENV_CHANNEL)
@@ -198,3 +213,65 @@ def test_migration_adds_created_at_column_as_null_for_existing_rows(tmp_path: Pa
     columns = {row[1] for row in repository._conn.execute("PRAGMA table_info(subscriptions)")}
     assert "created_at" in columns
     assert _created_at(tmp_path, -100) is None
+
+
+def test_new_subscription_records_a_subscribed_event(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.upsert_subscription(USER_PRIVATE)
+
+    assert _events(tmp_path, USER_PRIVATE.chat_id) == [("subscribed", "private", "user")]
+
+
+def test_repeated_upsert_does_not_record_a_second_event(tmp_path: Path) -> None:
+    """_post_init re-seeds the env channel on every restart; that isn't a new subscriber."""
+    repository = _repository(tmp_path)
+    repository.upsert_subscription(ENV_CHANNEL)
+    repository.upsert_subscription(ENV_CHANNEL)
+
+    assert _events(tmp_path, ENV_CHANNEL.chat_id) == [("subscribed", "channel", "env")]
+
+
+def test_unsubscribing_and_dying_are_recorded_as_different_events(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.upsert_subscription(USER_PRIVATE)
+    repository.delete_user_subscription(USER_PRIVATE.chat_id)
+    repository.upsert_subscription(USER_PRIVATE)
+    repository.prune_dead_subscription(USER_PRIVATE.chat_id)
+
+    assert _events(tmp_path, USER_PRIVATE.chat_id) == [
+        ("subscribed", "private", "user"),
+        ("unsubscribed", "private", "user"),
+        ("subscribed", "private", "user"),
+        ("dead_chat", "private", "user"),
+    ]
+
+
+def test_deleting_a_missing_row_records_nothing(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+
+    assert not repository.delete_user_subscription(999)
+    assert _events(tmp_path, 999) == []
+
+
+def test_deleting_the_env_row_records_nothing(tmp_path: Path) -> None:
+    """The origin filter blocks the delete, so there is no leaving to log."""
+    repository = _repository(tmp_path)
+    repository.upsert_subscription(ENV_CHANNEL)
+
+    assert not repository.delete_user_subscription(ENV_CHANNEL.chat_id)
+    assert _events(tmp_path, ENV_CHANNEL.chat_id) == [("subscribed", "channel", "env")]
+
+
+def test_event_occurred_at_is_tz_aware_utc(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.upsert_subscription(USER_PRIVATE)
+
+    conn = sqlite3.connect(tmp_path / "test.db")
+    try:
+        (occurred_at,) = conn.execute(
+            "SELECT occurred_at FROM subscription_events WHERE chat_id = ?",
+            (USER_PRIVATE.chat_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    assert datetime.fromisoformat(occurred_at).tzinfo is not None

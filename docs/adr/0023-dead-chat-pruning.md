@@ -46,7 +46,7 @@ Classify at the send site and act on the terminal case only.
   `_prune_dead_chat`; every other exception propagates to `error_handler`
   unchanged.
 - `_prune_dead_chat` branches on `Subscription.origin` (ADR 0008):
-  - `origin='user'` → `delete_user_subscription`, and every still-pending
+  - `origin='user'` → `prune_dead_subscription` (ADR 0024), and every still-pending
     reminder job for that `chat_id` is cancelled by name prefix
     (`reminder:{chat_id}:`), the same mechanism `reschedule_reminders` uses.
     Logged at WARNING; **not** reported to the debug chat. A user blocking the
@@ -74,7 +74,8 @@ Classify at the send site and act on the terminal case only.
   `get_subscription`, the planner's input) would need to filter on it, and a
   chat that unblocks the bot has no way to signal that other than sending a
   command — which already re-subscribes it. Deletion keeps `subscriptions`
-  meaning exactly "chats that receive reminders".
+  meaning exactly "chats that receive reminders"; ADR 0024 keeps the analytics
+  trail in a separate append-only log instead.
 - **Treat any unwritable error as terminal**: one closed topic would unsubscribe
   an active group that never asked to leave. Rejected — this is precisely the
   distinction the ADR exists to draw.
@@ -89,9 +90,9 @@ Classify at the send site and act on the terminal case only.
 
 ## Consequences
 
-- `subscriptions` shrinks on its own. A chat that blocks the bot disappears from
-  the growth numbers (ADR 0022) with no record that it ever left — the dashboard
-  sees the row vanish, not an unsubscribe event.
+- `subscriptions` shrinks on its own. The departure is not lost, though: ADR 0024
+  records it as a `dead_chat` event, distinct from a voluntary `/promemoria_off`,
+  so the dashboard can still tell an unreachable chat from an inactive one.
 - A user who blocks and later unblocks the bot gets no reminders until they send
   `/promemoria_on` again. Their `created_at` resets, so they count as a new
   subscriber.

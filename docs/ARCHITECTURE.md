@@ -122,7 +122,10 @@ subscriptions         (chat_id INTEGER PRIMARY KEY, chat_type TEXT NOT NULL,
 sent_reminders        (chat_id INTEGER, round INTEGER, offset_seconds INTEGER,
                        UNIQUE(chat_id, round, offset_seconds))
 lineup_confirmations  (chat_id INTEGER, round INTEGER, UNIQUE(chat_id, round))       -- ADR 0021
+subscription_events   (id INTEGER PK, chat_id, chat_type, origin, event, occurred_at) -- ADR 0024
 ```
+
+`subscription_events` is the append-only lifecycle log read by *osservatorio-hq* (ADR 0024): `subscribed` on a real insert, `unsubscribed` on `/promemoria_off` (still a user, just not active), `dead_chat` on the pruning of ADR 0023 (unreachable). The bot never reads it; each row is written in the same transaction as the `subscriptions` change it describes.
 
 `matchdays` fully regenerates from the calendar feed. `sent_reminders` and `lineup_confirmations` are disposable (worst case after deletion: a duplicate reminder, or a round's reminders un-silencing). `subscriptions` is **not** regenerable: it holds every user/group's `/promemoria_on` state and (since ADR 0013) custom `reminder_offsets` — back it up before anything destructive.
 
