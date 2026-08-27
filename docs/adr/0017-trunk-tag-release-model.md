@@ -111,6 +111,35 @@ trunk) may be committed directly on `release-1.0`.
    `ci.yml`'s `on.push.branches` so cherry-picked fix commits get checked too.
 6. `main` moves on toward the next version; season fixes follow decision 5.
 
+## Amendment (2026-08-27): the maintenance line follows the released minor
+
+Decisions 4 and 5 name `release-1.0` and `v1.0.x` literally, because they
+assumed one minor would carry a whole Serie A season. `v1.1.0` ships on
+2026-08-27, five days into the 2026/27 season, so that assumption is already
+spent: the fix it carries (ADR 0023) is a bugfix, but it travels with a new
+table and a new external contract (ADR 0024), which is not a `1.0.x` patch.
+
+Generalising, with no change to the model itself:
+
+- The maintenance line is **`release-X.Y` for the minor production currently
+  runs**, cut from `main` at that minor's tag — `release-1.1` at `v1.1.0`, and
+  so on. Patches for it are `vX.Y.(n+1)` tagged on that branch.
+- Cut it **at the tag**, not when it is first needed. The branch's whole
+  purpose is to still be there once `main` has moved on; cutting it later means
+  cutting it under pressure, from a trunk that already carries unreleased work.
+- Decision 5 is unchanged and applies to whichever line is current: fix on
+  `main` first, then cherry-pick down. Never the reverse.
+- The previous line is retired, not deleted: it stops receiving patches the
+  moment its successor is cut, and can be removed at the end of the season.
+- A minor **may** ship mid-season. Deploying is a tag push on `main` (decision
+  3 keys production off `github.ref_type == 'tag'`, never off a branch), so no
+  release branch is needed to reach production — only to go back and patch it.
+
+Step 5 of the runbook — "add the release branch to `ci.yml`" — was never
+carried out for `release-1.0`, which therefore took a cherry-picked commit
+with no CI run at all. `ci.yml` now matches `release-*` instead of a literal
+branch name, so no future line can be forgotten the same way.
+
 ## Alternatives considered
 
 - **Keep ADR 0011 (GitFlow-lite, merge commit):** the empty-merge-commit noise
