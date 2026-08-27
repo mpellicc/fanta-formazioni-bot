@@ -1,11 +1,9 @@
-import contextlib
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from telegram import Chat, Message, Update
 from telegram.constants import ChatMemberStatus, ChatType, ParseMode
-from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from fantaformazionibot.apptypes import BotApp
@@ -358,18 +356,18 @@ async def set_offsets_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
 
 
+def is_addressed_to_other_bot(text: str, username: str) -> bool:
+    """Groups often host multiple bots. A command can name its addressee
+    ("/list@other_bot"); one naming someone else isn't ours to answer.
+    Usernames are case-insensitive, as in PTB's own CommandHandler."""
+    command = next(iter(text.split()), "")
+    _, _, addressee = command.partition("@")
+    return bool(addressee) and addressee.lower() != username.lower()
+
+
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message is None or update.message.text is None:
         return
-
-    # Groups often host multiple bots. A command addressed to another bot
-    # (e.g. "/list@other_bot") isn't ours to answer — stay silent.
-    command = update.message.text.split(maxsplit=1)[0]
-    if "@" in command and not command.endswith(f"@{context.bot.username}"):
+    if is_addressed_to_other_bot(update.message.text, context.bot.username):
         return
-
-    # Replying can fail for reasons outside our control (e.g. the forum
-    # topic the command was sent in has since been closed); not our problem
-    # to solve, just don't let it surface as an unhandled exception.
-    with contextlib.suppress(BadRequest):
-        await update.message.reply_text(messages.unknown_command(), parse_mode=ParseMode.HTML)
+    await update.message.reply_text(messages.unknown_command(), parse_mode=ParseMode.HTML)

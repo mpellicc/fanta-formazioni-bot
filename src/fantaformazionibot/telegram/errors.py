@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.error import BadRequest, NetworkError
+from telegram.error import BadRequest, Forbidden, NetworkError
 from telegram.ext import ContextTypes
 
 from fantaformazionibot.config import Settings
@@ -25,6 +25,30 @@ _UPDATE_BUDGET = 700
 _POLLING_NETWORK_ERROR_COOLDOWN = timedelta(minutes=10)
 _last_polling_network_error_notice: datetime | None = None
 
+# Telegram refuses the delivery when the destination stopped accepting our
+# messages: a forum topic was closed or deleted, we were kicked, the chat is
+# gone. Nothing in the code can fix those, and every reply site can hit them,
+# so they are logged but never reported. Matching on the description is the
+# only option — PTB models both as one generic error class each — but it stays
+# deliberately narrow: a BadRequest we *can* fix (a malformed HTML body, say)
+# must still reach the debug chat.
+_UNWRITABLE_CHAT_DESCRIPTIONS = (
+    "topic_closed",
+    "topic_deleted",
+    "message thread not found",
+    "chat not found",
+    "have no rights to send a message",
+)
+
+
+def is_unwritable_chat_error(error: BaseException | None) -> bool:
+    if isinstance(error, Forbidden):
+        return True
+    if not isinstance(error, BadRequest):
+        return False
+    description = str(error).lower()
+    return any(known in description for known in _UNWRITABLE_CHAT_DESCRIPTIONS)
+
 
 def _is_transient_polling_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> bool:
     return (
@@ -38,6 +62,9 @@ def _is_transient_polling_error(update: object, context: ContextTypes.DEFAULT_TY
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     global _last_polling_network_error_notice
     logger.error("Exception while handling an update:", exc_info=context.error)
+
+    if is_unwritable_chat_error(context.error):
+        return
 
     if _is_transient_polling_error(update, context):
         now = datetime.now(UTC)
