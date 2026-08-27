@@ -26,28 +26,38 @@ _POLLING_NETWORK_ERROR_COOLDOWN = timedelta(minutes=10)
 _last_polling_network_error_notice: datetime | None = None
 
 # Telegram refuses the delivery when the destination stopped accepting our
-# messages: a forum topic was closed or deleted, we were kicked, the chat is
-# gone. Nothing in the code can fix those, and every reply site can hit them,
-# so they are logged but never reported. Matching on the description is the
-# only option — PTB models both as one generic error class each — but it stays
+# messages. Nothing in the code can fix those and every send site can hit them,
+# so they are logged but never reported. Matching on the description is the only
+# option — PTB models these as one generic error class each — but it stays
 # deliberately narrow: a BadRequest we *can* fix (a malformed HTML body, say)
 # must still reach the debug chat.
-_UNWRITABLE_CHAT_DESCRIPTIONS = (
+#
+# Terminal vs transient matters at the reminder send site, which prunes the
+# subscription on the former and lets the latter pass (ADR 0023).
+_DEAD_CHAT_DESCRIPTIONS = ("chat not found",)
+_TRANSIENTLY_UNWRITABLE_DESCRIPTIONS = (
     "topic_closed",
     "topic_deleted",
     "message thread not found",
-    "chat not found",
     "have no rights to send a message",
 )
 
 
-def is_unwritable_chat_error(error: BaseException | None) -> bool:
-    if isinstance(error, Forbidden):
-        return True
+def _matches(error: BaseException | None, descriptions: tuple[str, ...]) -> bool:
     if not isinstance(error, BadRequest):
         return False
-    description = str(error).lower()
-    return any(known in description for known in _UNWRITABLE_CHAT_DESCRIPTIONS)
+    return any(known in str(error).lower() for known in descriptions)
+
+
+def is_dead_chat_error(error: BaseException | None) -> bool:
+    """The chat will never accept our messages again: blocked, kicked, gone."""
+    return isinstance(error, Forbidden) or _matches(error, _DEAD_CHAT_DESCRIPTIONS)
+
+
+def is_unwritable_chat_error(error: BaseException | None) -> bool:
+    """This delivery failed for a reason no code change can fix — dead chat, or
+    a destination that may well accept the next message (a closed forum topic)."""
+    return is_dead_chat_error(error) or _matches(error, _TRANSIENTLY_UNWRITABLE_DESCRIPTIONS)
 
 
 def _is_transient_polling_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> bool:

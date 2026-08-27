@@ -91,6 +91,13 @@ Each reminder job carries `(chat_id, round, offset_seconds)`. On fire it:
 
 Reminders whose time is already in the past at scheduling time are skipped, never sent late.
 
+If Telegram refuses the delivery because the chat is gone for good — the bot was
+blocked, kicked, or removed — the subscription is pruned and that chat's pending
+reminder jobs are cancelled (ADR 0023). The env-owned channel row is the
+exception: it is kept and reported to `DEBUG_CHAT_ID`, since `_post_init`
+re-seeds it anyway and only a human can restore the bot's access. A transient
+refusal (a closed forum topic) loses that one reminder and changes nothing else.
+
 ### Confirming a lineup — "Ho schierato" (ADR 0021)
 
 Private chats only (a group/channel subscription is shared by several
