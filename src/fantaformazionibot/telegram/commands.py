@@ -1,9 +1,11 @@
+import contextlib
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from telegram import Chat, Message, Update
 from telegram.constants import ChatMemberStatus, ChatType, ParseMode
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from fantaformazionibot.apptypes import BotApp
@@ -357,6 +359,17 @@ async def set_offsets_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message is None:
+    if update.message is None or update.message.text is None:
         return
-    await update.message.reply_text(messages.unknown_command(), parse_mode=ParseMode.HTML)
+
+    # Groups often host multiple bots. A command addressed to another bot
+    # (e.g. "/list@other_bot") isn't ours to answer — stay silent.
+    command = update.message.text.split(maxsplit=1)[0]
+    if "@" in command and not command.endswith(f"@{context.bot.username}"):
+        return
+
+    # Replying can fail for reasons outside our control (e.g. the forum
+    # topic the command was sent in has since been closed); not our problem
+    # to solve, just don't let it surface as an unhandled exception.
+    with contextlib.suppress(BadRequest):
+        await update.message.reply_text(messages.unknown_command(), parse_mode=ParseMode.HTML)
