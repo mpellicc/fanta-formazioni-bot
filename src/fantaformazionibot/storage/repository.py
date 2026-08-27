@@ -49,6 +49,26 @@ class Repository:
             # rather than backfilling a fabricated join date (ADR 0022).
             if "created_at" not in columns:
                 self._conn.execute("ALTER TABLE subscriptions ADD COLUMN created_at TEXT")
+            # Append-only lifecycle log: subscriptions only ever holds the active
+            # set, so leaving is otherwise invisible (ADR 0024).
+            self._conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS subscription_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    chat_id INTEGER NOT NULL,
+                    chat_type TEXT NOT NULL,
+                    origin TEXT NOT NULL,
+                    event TEXT NOT NULL,
+                    occurred_at TEXT NOT NULL
+                )
+                """
+            )
+            self._conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS subscription_events_chat_idx
+                ON subscription_events (chat_id, occurred_at)
+                """
+            )
             self._conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS sent_reminders (
@@ -98,6 +118,9 @@ class Repository:
     # --- subscriptions ---
 
     def upsert_subscription(self, subscription: Subscription) -> None:
+        # _post_init re-seeds the env channel on every restart and /promemoria_on
+        # is idempotent, so only a row that wasn't there is a new subscriber.
+        is_new = self.get_subscription(subscription.chat_id) is None
         with self._conn:
             self._conn.execute(
                 """
@@ -116,6 +139,10 @@ class Repository:
                     datetime.now(UTC).isoformat(),
                 ),
             )
+            if is_new:
+                self._record_event(
+                    subscription.chat_id, subscription.chat_type, subscription.origin, "subscribed"
+                )
 
     def prune_channel_subscriptions(self, keep_chat_id: int) -> None:
         """Drop env-owned channel subscriptions other than the configured one.
@@ -159,17 +186,41 @@ class Repository:
         return cursor.rowcount > 0
 
     def delete_user_subscription(self, chat_id: int) -> bool:
+        """/promemoria_off: the chat is still a known user, it just stopped
+        wanting reminders. Reported as whether a row was deleted."""
+        return self._delete_user_subscription(chat_id, "unsubscribed")
+
+    def prune_dead_subscription(self, chat_id: int) -> bool:
+        """The chat can no longer receive anything — blocked, kicked, gone (ADR 0023).
+        Same deletion, logged as a different kind of leaving (ADR 0024)."""
+        return self._delete_user_subscription(chat_id, "dead_chat")
+
+    def _delete_user_subscription(self, chat_id: int, event: str) -> bool:
         """Delete the chat's subscription if user-owned; report whether a row was deleted.
 
         The env-seeded channel row is owned by config (ADR 0012): commands
         must not delete it, hence the origin filter.
         """
+        leaving = self.get_subscription(chat_id)
         with self._conn:
             cursor = self._conn.execute(
                 "DELETE FROM subscriptions WHERE chat_id = ? AND origin = 'user'",
                 (chat_id,),
             )
+            if cursor.rowcount > 0 and leaving is not None:
+                self._record_event(chat_id, leaving.chat_type, leaving.origin, event)
         return cursor.rowcount > 0
+
+    def _record_event(self, chat_id: int, chat_type: str, origin: str, event: str) -> None:
+        """Append one lifecycle event. Call inside an open transaction: the row must
+        land with the subscriptions change it describes, or not at all."""
+        self._conn.execute(
+            """
+            INSERT INTO subscription_events (chat_id, chat_type, origin, event, occurred_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (chat_id, chat_type, origin, event, datetime.now(UTC).isoformat()),
+        )
 
     def get_subscriptions(self) -> list[Subscription]:
         rows = self._conn.execute(

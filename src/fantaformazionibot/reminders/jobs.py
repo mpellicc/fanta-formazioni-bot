@@ -10,10 +10,11 @@ from telegram.ext import ContextTypes
 from fantaformazionibot.apptypes import BotApp
 from fantaformazionibot.calendar.base import CalendarProvider
 from fantaformazionibot.config import Settings
-from fantaformazionibot.models import Matchday, PlannedReminder
+from fantaformazionibot.models import Matchday, PlannedReminder, Subscription
 from fantaformazionibot.reminders import planner
 from fantaformazionibot.storage.repository import Repository
 from fantaformazionibot.telegram import keyboards, messages
+from fantaformazionibot.telegram.errors import is_dead_chat_error
 
 logger = logging.getLogger(__name__)
 
@@ -133,18 +134,25 @@ async def send_reminder_job(context: ContextTypes.DEFAULT_TYPE) -> None:
         if subscription is not None and subscription.chat_type == ChatType.PRIVATE
         else None
     )
-    await context.bot.send_message(
-        chat_id=reminder.chat_id,
-        text=messages.reminder(
-            matchday.round,
-            deadline,
-            now,
-            reminder.offset_seconds,
-            settings.urgent_reminder_threshold,
-        ),
-        parse_mode=ParseMode.HTML,
-        reply_markup=reply_markup,
-    )
+    try:
+        await context.bot.send_message(
+            chat_id=reminder.chat_id,
+            text=messages.reminder(
+                matchday.round,
+                deadline,
+                now,
+                reminder.offset_seconds,
+                settings.urgent_reminder_threshold,
+            ),
+            parse_mode=ParseMode.HTML,
+            reply_markup=reply_markup,
+        )
+    except Exception as exc:
+        if not is_dead_chat_error(exc):
+            raise
+        await _prune_dead_chat(context, reminder.chat_id, subscription)
+        return
+
     repository.mark_reminder_sent(reminder.chat_id, reminder.round, reminder.offset_seconds)
     logger.info(
         "Reminder sent to %d for round %d (offset %ds)",
@@ -152,3 +160,49 @@ async def send_reminder_job(context: ContextTypes.DEFAULT_TYPE) -> None:
         reminder.round,
         reminder.offset_seconds,
     )
+
+
+async def _prune_dead_chat(
+    context: ContextTypes.DEFAULT_TYPE, chat_id: int, subscription: Subscription | None
+) -> None:
+    """Stop reminding a chat that can no longer receive them (ADR 0023).
+
+    A user-owned subscription is dropped, silently as far as the debug chat is
+    concerned: being blocked is churn, and /promemoria_on brings the chat back.
+    The env-owned channel row is kept — _post_init re-seeds it on every restart,
+    so deleting it would only postpone the same failure — and reported instead,
+    since losing access to the configured channel needs a human.
+    """
+    settings: Settings = context.bot_data["settings"]
+    repository: Repository = context.bot_data["repository"]
+
+    if subscription is not None and subscription.origin == "env":
+        logger.error("Cannot deliver reminders to the configured channel %d", chat_id)
+        try:
+            await context.bot.send_message(
+                chat_id=settings.debug_chat_id,
+                text=(
+                    f"⚠️ Telegram is refusing reminders to the configured channel {chat_id}: "
+                    "the bot was likely removed or its rights revoked. The subscription is "
+                    "kept — restore the bot's access to resume delivery."
+                ),
+            )
+        except Exception:
+            logger.exception("Failed to report the dead channel to the debug chat")
+        return
+
+    repository.prune_dead_subscription(chat_id)
+    _cancel_reminders_for(context, chat_id)
+    logger.warning("Subscription %d pruned: the chat no longer accepts our messages", chat_id)
+
+
+def _cancel_reminders_for(context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> None:
+    """Drop the still-pending reminder jobs of a chat, by the name prefix
+    reschedule_reminders builds them with."""
+    job_queue = context.job_queue
+    if job_queue is None:
+        return
+    prefix = f"{REMINDER_JOB_PREFIX}{chat_id}:"
+    for job in job_queue.jobs():
+        if job.name and job.name.startswith(prefix):
+            job.schedule_removal()
