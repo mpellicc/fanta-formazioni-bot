@@ -356,7 +356,18 @@ async def set_offsets_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
 
 
+def is_addressed_to_other_bot(text: str, username: str) -> bool:
+    """Groups often host multiple bots. A command can name its addressee
+    ("/list@other_bot"); one naming someone else isn't ours to answer.
+    Usernames are case-insensitive, as in PTB's own CommandHandler."""
+    command = next(iter(text.split()), "")
+    _, _, addressee = command.partition("@")
+    return bool(addressee) and addressee.lower() != username.lower()
+
+
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message is None:
+    if update.message is None or update.message.text is None:
+        return
+    if is_addressed_to_other_bot(update.message.text, context.bot.username):
         return
     await update.message.reply_text(messages.unknown_command(), parse_mode=ParseMode.HTML)

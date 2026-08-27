@@ -2,7 +2,11 @@ from datetime import timedelta
 
 import pytest
 
-from fantaformazionibot.telegram.commands import OffsetsParseError, parse_offsets_args
+from fantaformazionibot.telegram.commands import (
+    OffsetsParseError,
+    is_addressed_to_other_bot,
+    parse_offsets_args,
+)
 
 
 def test_parse_offsets_args_space_separated() -> None:
@@ -66,3 +70,26 @@ def test_parse_offsets_args_out_of_range_raises(token: str) -> None:
         parse_offsets_args([token])
     assert exc_info.value.reason == "out_of_range"
     assert exc_info.value.token == token
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["/list@rss2tg_bot", "/list@RSS2TG_Bot", "/list@other_bot argomento"],
+)
+def test_is_addressed_to_other_bot(text: str) -> None:
+    assert is_addressed_to_other_bot(text, "FantaFormazioniBot")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "/list",
+        "/list argomento",
+        "/list@FantaFormazioniBot",
+        "/list@fantaformazionibot",
+        "/LIST@FANTAFORMAZIONIBOT",
+        "",
+    ],
+)
+def test_is_not_addressed_to_other_bot(text: str) -> None:
+    assert not is_addressed_to_other_bot(text, "FantaFormazioniBot")
