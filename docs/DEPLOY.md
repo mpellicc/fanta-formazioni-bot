@@ -54,7 +54,7 @@ Everything else (app directories, compose file, env files) is created by the dep
 
 ## Workflows
 
-- **`ci.yml`** — push to `main` and every PR: `ruff check`, `ruff format --check`, `mypy src`, `pytest`. (Once `release-1.0` is cut, it's added here too so cherry-picked fix commits get checked.)
+- **`ci.yml`** — push to `main` or any `release-*` branch, and every PR: `ruff check`, `ruff format --check`, `mypy src`, `pytest`. The `release-*` glob means a newly cut maintenance line is covered without editing this file.
 - **`deploy.yml`** — push to `main`, push of a tag `v*`, or manual `workflow_dispatch` (pick the branch or tag to run from): build multi-arch image (amd64+arm64), push to GHCR, then over SSH: copy `compose.yaml`, write `.env` from the environment's config, `docker compose pull && up -d` in the target directory. On a tag push, a `release` job also creates the GitHub Release for that tag.
 
 ## Branching and release flow (ADR 0017: trunk + tag releases)
@@ -71,16 +71,18 @@ git push origin v1.1.0
 
 Pushing the tag builds the image, tags it `:X.Y.Z` + `:latest`, deploys production, and publishes the GitHub Release — all in `deploy.yml`. There is no version bump commit and no separate "Prepare release" step; `pyproject.toml` does not track a version (ADR 0017).
 
-**Seasonal maintenance branch** (`release-1.0`, cut from `main` at the `v1.0.0` tag): during the season, in-season bugfixes are fixed on `main` first (so the trunk never regresses), then cherry-picked onto `release-1.0` and tagged as a patch:
+**Seasonal maintenance branch** (`release-X.Y`, cut from `main` at that minor's tag — currently **`release-1.1`**, cut at `v1.1.0`; `release-1.0` is retired): during the season, in-season bugfixes are fixed on `main` first (so the trunk never regresses), then cherry-picked onto the release branch and tagged as a patch:
 
 ```bash
-git checkout release-1.0 && git pull
+git checkout release-1.1 && git pull
 git cherry-pick <fix-commit-sha>   # the fix, already merged into main
-git tag v1.0.3
-git push origin release-1.0 v1.0.3
+git tag v1.1.1
+git push origin release-1.1 v1.1.1
 ```
 
-Never fix directly on `release-1.0` first — always fix on `main`, then cherry-pick down, to avoid the fix silently missing from the next `main`-based version.
+Never fix directly on the release branch first — always fix on `main`, then cherry-pick down, to avoid the fix silently missing from the next `main`-based version.
+
+A **minor** does not need the release branch: tag it on `main` and push, exactly as above. Production is selected by the ref being a tag, not by which branch it points into (ADR 0017 decision 3 + amendment). The release branch exists so you can come back and patch that minor once `main` has moved on — cut it at the tag, not when you first need it.
 
 ## Operations
 
