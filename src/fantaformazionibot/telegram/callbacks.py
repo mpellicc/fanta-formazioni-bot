@@ -13,7 +13,7 @@ import contextlib
 import re
 from datetime import timedelta
 
-from telegram import CallbackQuery, Chat, ForceReply, InlineKeyboardMarkup, Update
+from telegram import CallbackQuery, Chat, ForceReply, InlineKeyboardMarkup, Message, Update
 from telegram.constants import ChatType, ParseMode
 from telegram.error import BadRequest
 from telegram.ext import (
@@ -36,6 +36,8 @@ from fantaformazionibot.telegram.commands import (
     parse_offsets_args,
     set_offsets,
     subscribe,
+    topic_suffix,
+    topic_thread_id,
     undo_lineup_confirmation,
     unsubscribe,
     user_may_manage_subscription,
@@ -46,6 +48,7 @@ OFFSETS_CUSTOM_INPUT = 1
 _GRID_CHAT_ID = "offsets_grid_chat_id"
 _GRID_MESSAGE_ID = "offsets_grid_message_id"
 _GRID_MASK = "offsets_grid_mask"
+_GRID_THREAD_ID = "offsets_grid_thread_id"
 _PROMPT_MESSAGE_ID = "offsets_prompt_message_id"
 
 
@@ -82,6 +85,13 @@ async def _edit_markup(query: CallbackQuery, reply_markup: InlineKeyboardMarkup)
         await query.edit_message_reply_markup(reply_markup=reply_markup)
 
 
+def _query_thread_id(query: CallbackQuery) -> int | None:
+    """topic_thread_id needs a real Message; a pressed button's message can be an
+    InaccessibleMessage (too old to edit), which carries no topic info."""
+    message = query.message
+    return topic_thread_id(message) if isinstance(message, Message) else None
+
+
 async def subscribe_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = await _gate(update, context)
     if query is None or query.message is None:
@@ -92,7 +102,8 @@ async def subscribe_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     settings: Settings = context.bot_data["settings"]
     repository: Repository = context.bot_data["repository"]
-    result = subscribe(chat, settings, repository, context.application)
+    thread_id = _query_thread_id(query)
+    result = subscribe(chat, settings, repository, context.application, thread_id)
 
     await query.answer()
     text = (
@@ -100,6 +111,7 @@ async def subscribe_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if result.already_subscribed
         else messages.subscription_enabled(result.reminder_offsets)
     )
+    text += topic_suffix(result.topic_changed, thread_id)
     await _edit_text(query, text, keyboards.build_subscription_keyboard(subscribed=True))
 
 
@@ -194,12 +206,14 @@ async def save_offsets_callback(update: Update, context: ContextTypes.DEFAULT_TY
         await query.answer(messages.offsets_selection_empty(), show_alert=True)
         return
 
-    newly_subscribed = set_offsets(chat, merged, repository, context.application)
+    thread_id = _query_thread_id(query)
+    result = set_offsets(chat, merged, repository, context.application, thread_id)
 
     await query.answer()
     await _edit_text(
         query,
-        messages.offsets_updated(merged, newly_subscribed=newly_subscribed),
+        messages.offsets_updated(merged, newly_subscribed=result.newly_subscribed)
+        + topic_suffix(result.topic_changed, thread_id),
         keyboards.build_offsets_keyboard(mask),
     )
 
@@ -214,7 +228,14 @@ async def default_offsets_callback(update: Update, context: ContextTypes.DEFAULT
 
     settings: Settings = context.bot_data["settings"]
     repository: Repository = context.bot_data["repository"]
-    set_offsets(chat, settings.reminder_offsets, repository, context.application)
+    thread_id = _query_thread_id(query)
+    result = set_offsets(
+        chat,
+        settings.reminder_offsets,
+        repository,
+        context.application,
+        thread_id,
+    )
 
     mask = keyboards.mask_from_offsets(
         tuple(int(offset.total_seconds()) for offset in settings.reminder_offsets)
@@ -222,7 +243,8 @@ async def default_offsets_callback(update: Update, context: ContextTypes.DEFAULT
     await query.answer()
     await _edit_text(
         query,
-        messages.offsets_reset(settings.reminder_offsets),
+        messages.offsets_reset(settings.reminder_offsets)
+        + topic_suffix(result.topic_changed, thread_id),
         keyboards.build_offsets_keyboard(mask),
     )
 
@@ -239,16 +261,19 @@ async def start_custom_offsets(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     await _edit_markup(query, keyboards.build_offsets_waiting_keyboard(mask))
 
+    thread_id = _query_thread_id(query)
     prompt = await context.bot.send_message(
         chat_id=chat.id,
         text=messages.offsets_custom_prompt(),
         parse_mode=ParseMode.HTML,
         reply_markup=ForceReply(selective=True),
+        message_thread_id=thread_id,
     )
     assert context.user_data is not None
     context.user_data[_GRID_CHAT_ID] = chat.id
     context.user_data[_GRID_MESSAGE_ID] = query.message.message_id
     context.user_data[_GRID_MASK] = mask
+    context.user_data[_GRID_THREAD_ID] = thread_id
     context.user_data[_PROMPT_MESSAGE_ID] = prompt.message_id
     return OFFSETS_CUSTOM_INPUT
 
@@ -260,6 +285,7 @@ async def _restore_grid(context: ContextTypes.DEFAULT_TYPE, *, mask: int) -> Non
     message_id = context.user_data.pop(_GRID_MESSAGE_ID, None)
     prompt_message_id = context.user_data.pop(_PROMPT_MESSAGE_ID, None)
     context.user_data.pop(_GRID_MASK, None)
+    context.user_data.pop(_GRID_THREAD_ID, None)
     if chat_id is None or message_id is None:
         return
     with contextlib.suppress(BadRequest):
@@ -282,6 +308,7 @@ async def _close_custom_offsets(context: ContextTypes.DEFAULT_TYPE) -> None:
     message_id = context.user_data.pop(_GRID_MESSAGE_ID, None)
     prompt_message_id = context.user_data.pop(_PROMPT_MESSAGE_ID, None)
     context.user_data.pop(_GRID_MASK, None)
+    context.user_data.pop(_GRID_THREAD_ID, None)
     if chat_id is None:
         return
     if message_id is not None:
@@ -307,9 +334,11 @@ async def receive_custom_offsets(update: Update, context: ContextTypes.DEFAULT_T
         return OFFSETS_CUSTOM_INPUT
 
     repository: Repository = context.bot_data["repository"]
-    newly_subscribed = set_offsets(chat, offsets, repository, context.application)
+    thread_id = topic_thread_id(message)
+    result = set_offsets(chat, offsets, repository, context.application, thread_id)
     await message.reply_text(
-        messages.offsets_updated(offsets, newly_subscribed=newly_subscribed),
+        messages.offsets_updated(offsets, newly_subscribed=result.newly_subscribed)
+        + topic_suffix(result.topic_changed, thread_id),
         parse_mode=ParseMode.HTML,
     )
 
@@ -342,10 +371,14 @@ async def timeout_custom_offsets(update: Update, context: ContextTypes.DEFAULT_T
     assert context.user_data is not None
     chat_id = context.user_data.get(_GRID_CHAT_ID)
     mask = context.user_data.get(_GRID_MASK, 0)
+    thread_id = context.user_data.get(_GRID_THREAD_ID)
     await _restore_grid(context, mask=mask)
     if chat_id is not None:
         await context.bot.send_message(
-            chat_id=chat_id, text=messages.offsets_custom_timeout(), parse_mode=ParseMode.HTML
+            chat_id=chat_id,
+            text=messages.offsets_custom_timeout(),
+            parse_mode=ParseMode.HTML,
+            message_thread_id=thread_id,
         )
 
 

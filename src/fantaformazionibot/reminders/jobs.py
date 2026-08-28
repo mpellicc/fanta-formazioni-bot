@@ -146,6 +146,7 @@ async def send_reminder_job(context: ContextTypes.DEFAULT_TYPE) -> None:
             ),
             parse_mode=ParseMode.HTML,
             reply_markup=reply_markup,
+            message_thread_id=subscription.message_thread_id if subscription else None,
         )
     except Exception as exc:
         if not is_dead_chat_error(exc):

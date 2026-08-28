@@ -23,6 +23,7 @@ class Subscription:
     chat_type: str
     reminder_offsets: tuple[int, ...]  # seconds before the deadline
     origin: str = "user"
+    message_thread_id: int | None = None  # forum topic bound to receive reminders (ADR 0025)
 
 
 @dataclass(frozen=True, slots=True)

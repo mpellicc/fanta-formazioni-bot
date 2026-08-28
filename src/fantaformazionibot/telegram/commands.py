@@ -151,20 +151,56 @@ def _to_timedeltas(offsets_seconds: tuple[int, ...]) -> tuple[timedelta, ...]:
     return tuple(timedelta(seconds=seconds) for seconds in offsets_seconds)
 
 
+def topic_thread_id(message: Message | None) -> int | None:
+    """The forum topic a message lives in, if any (ADR 0025).
+
+    In forums, messages posted in "General" have is_topic_message False: there
+    the thread id is left None, so delivery stays identical to today.
+    """
+    if message is not None and message.is_topic_message and message.message_thread_id is not None:
+        return message.message_thread_id
+    return None
+
+
+def topic_suffix(topic_changed: bool, message_thread_id: int | None) -> str:
+    """Feedback fragment for a destination change, or "" when nothing moved.
+
+    The caller already knows message_thread_id, so it (not subscribe/set_offsets)
+    picks which of the two directions to announce.
+    """
+    if not topic_changed:
+        return ""
+    return (
+        messages.subscription_topic_bound()
+        if message_thread_id is not None
+        else messages.subscription_topic_unbound()
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class SubscribeResult:
     already_subscribed: bool
     reminder_offsets: tuple[timedelta, ...]
+    topic_changed: bool = False
 
 
 def subscribe(
-    chat: Chat, settings: Settings, repository: Repository, application: BotApp
+    chat: Chat,
+    settings: Settings,
+    repository: Repository,
+    application: BotApp,
+    message_thread_id: int | None = None,
 ) -> SubscribeResult:
     """Core of /promemoria_on, shared with the sub:on callback (telegram/callbacks.py)."""
     existing = repository.get_subscription(chat.id)
     if existing is not None:
         # Never overwrite offsets: custom times must survive a repeated subscribe.
-        return SubscribeResult(True, _to_timedeltas(existing.reminder_offsets))
+        topic_changed = message_thread_id != existing.message_thread_id
+        if topic_changed:
+            # Destination only, not scheduling: PlannedReminder carries no thread id and
+            # send_reminder_job re-reads the subscription (and its thread) at send time.
+            repository.update_subscription_thread(chat.id, message_thread_id)
+        return SubscribeResult(True, _to_timedeltas(existing.reminder_offsets), topic_changed)
 
     repository.upsert_subscription(
         Subscription(
@@ -174,10 +210,11 @@ def subscribe(
                 int(offset.total_seconds()) for offset in settings.reminder_offsets
             ),
             origin="user",
+            message_thread_id=message_thread_id,
         )
     )
     reschedule_reminders(application)
-    return SubscribeResult(False, settings.reminder_offsets)
+    return SubscribeResult(False, settings.reminder_offsets, message_thread_id is not None)
 
 
 def unsubscribe(chat: Chat, repository: Repository, application: BotApp) -> bool:
@@ -188,17 +225,34 @@ def unsubscribe(chat: Chat, repository: Repository, application: BotApp) -> bool
     return deleted
 
 
+@dataclass(frozen=True, slots=True)
+class SetOffsetsResult:
+    newly_subscribed: bool
+    topic_changed: bool = False
+
+
 def set_offsets(
     chat: Chat,
     offsets: tuple[timedelta, ...],
     repository: Repository,
     application: BotApp,
-) -> bool:
-    """Core of /personalizza_orari, shared with the offsets callbacks. Returns newly_subscribed."""
+    message_thread_id: int | None = None,
+) -> SetOffsetsResult:
+    """Core of /personalizza_orari, shared with the offsets callbacks."""
     offsets_seconds = tuple(int(offset.total_seconds()) for offset in offsets)
     existing = repository.get_subscription(chat.id)
+    # A brand-new row has no prior destination to compare against: only announce it when
+    # a topic is actually being bound, matching subscribe()'s new-subscription case.
+    topic_changed = (
+        message_thread_id is not None
+        if existing is None
+        else message_thread_id != existing.message_thread_id
+    )
     if existing is not None:
         repository.update_subscription_offsets(chat.id, offsets_seconds)
+        if topic_changed:
+            # Destination only, not scheduling: see subscribe()'s equivalent branch above.
+            repository.update_subscription_thread(chat.id, message_thread_id)
     else:
         repository.upsert_subscription(
             Subscription(
@@ -206,10 +260,11 @@ def set_offsets(
                 chat_type=chat.type,
                 reminder_offsets=offsets_seconds,
                 origin="user",
+                message_thread_id=message_thread_id,
             )
         )
     reschedule_reminders(application)
-    return existing is None
+    return SetOffsetsResult(newly_subscribed=existing is None, topic_changed=topic_changed)
 
 
 def parse_offsets_args(args: Sequence[str]) -> tuple[timedelta, ...]:
@@ -247,17 +302,15 @@ async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     settings: Settings = context.bot_data["settings"]
     repository: Repository = context.bot_data["repository"]
-    result = subscribe(chat, settings, repository, context.application)
+    thread_id = topic_thread_id(update.message)
+    result = subscribe(chat, settings, repository, context.application, thread_id)
 
     if result.already_subscribed:
-        await update.message.reply_text(
-            messages.subscription_already_enabled(result.reminder_offsets),
-            parse_mode=ParseMode.HTML,
-        )
-        return
-    await update.message.reply_text(
-        messages.subscription_enabled(result.reminder_offsets), parse_mode=ParseMode.HTML
-    )
+        text = messages.subscription_already_enabled(result.reminder_offsets)
+    else:
+        text = messages.subscription_enabled(result.reminder_offsets)
+    text += topic_suffix(result.topic_changed, thread_id)
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
 
 async def unsubscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -345,13 +398,17 @@ async def set_offsets_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return
 
-    newly_subscribed = set_offsets(chat, offsets, repository, context.application)
+    thread_id = topic_thread_id(update.message)
+    result = set_offsets(chat, offsets, repository, context.application, thread_id)
+    suffix = topic_suffix(result.topic_changed, thread_id)
 
     if is_reset:
-        await update.message.reply_text(messages.offsets_reset(offsets), parse_mode=ParseMode.HTML)
+        await update.message.reply_text(
+            messages.offsets_reset(offsets) + suffix, parse_mode=ParseMode.HTML
+        )
     else:
         await update.message.reply_text(
-            messages.offsets_updated(offsets, newly_subscribed=newly_subscribed),
+            messages.offsets_updated(offsets, newly_subscribed=result.newly_subscribed) + suffix,
             parse_mode=ParseMode.HTML,
         )
 

@@ -1,12 +1,26 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from telegram import Chat, Message
 
 from fantaformazionibot.telegram.commands import (
     OffsetsParseError,
     is_addressed_to_other_bot,
     parse_offsets_args,
+    topic_thread_id,
 )
+
+_CHAT = Chat(id=1, type="supergroup")
+
+
+def _message(*, is_topic_message: bool | None, message_thread_id: int | None) -> Message:
+    return Message(
+        message_id=1,
+        date=datetime.now(UTC),
+        chat=_CHAT,
+        is_topic_message=is_topic_message,
+        message_thread_id=message_thread_id,
+    )
 
 
 def test_parse_offsets_args_space_separated() -> None:
@@ -93,3 +107,22 @@ def test_is_addressed_to_other_bot(text: str) -> None:
 )
 def test_is_not_addressed_to_other_bot(text: str) -> None:
     assert not is_addressed_to_other_bot(text, "FantaFormazioniBot")
+
+
+def test_topic_thread_id_none_message() -> None:
+    assert topic_thread_id(None) is None
+
+
+def test_topic_thread_id_non_forum_chat() -> None:
+    message = _message(is_topic_message=None, message_thread_id=None)
+    assert topic_thread_id(message) is None
+
+
+def test_topic_thread_id_general_topic() -> None:
+    message = _message(is_topic_message=False, message_thread_id=None)
+    assert topic_thread_id(message) is None
+
+
+def test_topic_thread_id_real_topic() -> None:
+    message = _message(is_topic_message=True, message_thread_id=99)
+    assert topic_thread_id(message) == 99

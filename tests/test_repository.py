@@ -44,6 +44,14 @@ def _events(tmp_path: Path, chat_id: int) -> list[tuple[str, str, str]]:
         conn.close()
 
 
+def _subscriptions_columns(db_path: Path) -> set[str]:
+    conn = sqlite3.connect(db_path)
+    try:
+        return {row[1] for row in conn.execute("PRAGMA table_info(subscriptions)")}
+    finally:
+        conn.close()
+
+
 def test_upsert_and_get_subscriptions_roundtrip(tmp_path: Path) -> None:
     repository = _repository(tmp_path)
     repository.upsert_subscription(ENV_CHANNEL)
@@ -275,3 +283,78 @@ def test_event_occurred_at_is_tz_aware_utc(tmp_path: Path) -> None:
     finally:
         conn.close()
     assert datetime.fromisoformat(occurred_at).tzinfo is not None
+
+
+def test_message_thread_id_roundtrip(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    with_thread = Subscription(
+        chat_id=77,
+        chat_type="supergroup",
+        reminder_offsets=(3600,),
+        origin="user",
+        message_thread_id=12,
+    )
+    repository.upsert_subscription(with_thread)
+
+    fetched = repository.get_subscription(77)
+    assert fetched is not None
+    assert fetched.message_thread_id == 12
+    assert repository.get_subscriptions() == [with_thread]
+
+
+def test_message_thread_id_defaults_to_none(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.upsert_subscription(USER_PRIVATE)
+
+    fetched = repository.get_subscription(USER_PRIVATE.chat_id)
+    assert fetched is not None
+    assert fetched.message_thread_id is None
+
+
+def test_update_subscription_thread_updates_existing_row(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.upsert_subscription(USER_PRIVATE)
+
+    assert repository.update_subscription_thread(USER_PRIVATE.chat_id, 55) is True
+
+    updated = repository.get_subscription(USER_PRIVATE.chat_id)
+    assert updated is not None
+    assert updated.message_thread_id == 55
+    assert updated.reminder_offsets == USER_PRIVATE.reminder_offsets
+
+
+def test_update_subscription_thread_missing_row(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+
+    assert repository.update_subscription_thread(12345, 55) is False
+
+
+def test_migration_adds_message_thread_id_column_as_null_for_existing_rows(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "test.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        """
+        CREATE TABLE subscriptions (
+            chat_id INTEGER PRIMARY KEY,
+            chat_type TEXT NOT NULL,
+            reminder_offsets TEXT NOT NULL,
+            origin TEXT NOT NULL DEFAULT 'env',
+            created_at TEXT
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO subscriptions (chat_id, chat_type, reminder_offsets, origin, created_at)"
+        " VALUES (-100, 'channel', '[86400]', 'env', NULL)"
+    )
+    conn.commit()
+    conn.close()
+
+    repository = Repository(db_path)
+
+    assert "message_thread_id" in _subscriptions_columns(db_path)
+    fetched = repository.get_subscription(-100)
+    assert fetched is not None
+    assert fetched.message_thread_id is None
