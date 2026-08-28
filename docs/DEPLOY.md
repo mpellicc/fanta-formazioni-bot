@@ -71,13 +71,13 @@ git push origin v1.1.0
 
 Pushing the tag builds the image, tags it `:X.Y.Z` + `:latest`, deploys production, and publishes the GitHub Release — all in `deploy.yml`. There is no version bump commit and no separate "Prepare release" step; `pyproject.toml` does not track a version (ADR 0017).
 
-**Seasonal maintenance branch** (`release-X.Y`, cut from `main` at that minor's tag — currently **`release-1.1`**, cut at `v1.1.0`; `release-1.0` is retired): during the season, in-season bugfixes are fixed on `main` first (so the trunk never regresses), then cherry-picked onto the release branch and tagged as a patch:
+**Seasonal maintenance branch** (`release-X.Y`, cut from `main` at that minor's tag — currently **`release-1.2`**, cut at `v1.2.0`; `release-1.0` and `release-1.1` are retired): during the season, in-season bugfixes are fixed on `main` first (so the trunk never regresses), then cherry-picked onto the release branch and tagged as a patch:
 
 ```bash
-git checkout release-1.1 && git pull
+git checkout release-1.2 && git pull
 git cherry-pick <fix-commit-sha>   # the fix, already merged into main
-git tag v1.1.1
-git push origin release-1.1 v1.1.1
+git tag v1.2.1
+git push origin release-1.2 v1.2.1
 ```
 
 Never fix directly on the release branch first — always fix on `main`, then cherry-pick down, to avoid the fix silently missing from the next `main`-based version.

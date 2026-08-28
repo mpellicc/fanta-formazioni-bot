@@ -38,6 +38,11 @@
 - **ADR 0023**: una chat che blocca/caccia il bot veniva mantenuta in `subscriptions` e generava reminder falliti per tutta la stagione, in silenzio. Ora `send_reminder_job` distingue errori terminali (`is_dead_chat_error`) da transitori (topic chiuso) e sui primi pota la subscription + cancella i job pendenti di quella chat. La riga del canale `origin='env'` fa eccezione: si tiene e si segnala sul debug chat, perché `_post_init` la ricrea comunque a ogni riavvio.
 - **ADR 0024**: nuova tabella append-only `subscription_events` (`subscribed` / `unsubscribed` / `dead_chat`) per *osservatorio-hq*. Serve a distinguere tre stati che prima collassavano nel nulla: attivo, iscritto-ma-non-attivo (`/promemoria_off`), cancellato (chat irraggiungibile). **Nessun read path del bot cambia**: `subscriptions` continua a significare esattamente "chi riceve i reminder". I nomi dei tre eventi sono un contratto con l'altro repo — aggiungerne di nuovi è sicuro, rinominarli no.
 
+**Aggiornamento 2026-08-28 — v1.2.0 in produzione (topic dei forum):**
+- Tag `v1.2.0` su `main` (PR #33, ADR 0025). Non è una patch: aggiunge una colonna a `subscriptions` e un comportamento di consegna nuovo.
+- La linea di manutenzione in stagione è ora **`release-1.2`**, tagliata al tag; `release-1.0` e `release-1.1` sono ritirate. `CLAUDE.md` e `docs/DEPLOY.md` sono aggiornati di conseguenza.
+- Il bot dev è stato usato per la prova manuale con `CALENDAR_PROVIDER=mock` e un id extra in `ALLOWED_CHAT_IDS`: se qualcosa nel dev sembra fabbricare giornate inesistenti, controllare che quelle due variabili siano tornate ai valori normali.
+
 ## 3. Cosa c'è da fare e come
 
 **Roadmap funzionale (in ordine di priorità espressa da Matteo) — punti 1–3 in prod da v0.11.0, punto 4 da v0.12.0:**
@@ -62,7 +67,9 @@
 
 **Aggiornamento 2026-07-14 (stessa giornata, seconda revisione — decisione finale per questa sessione)**: dopo aver chiuso il primo bivio di design (iscrizione al roster via bottone di auto-registrazione, non username digitati — vedi "Roadmap verso la v1.1" sotto) sono emerse altre implicazioni ancora aperte (chiusura iscrizioni, gestione di chi lascia il gruppo). Matteo ha deciso di **non forzarla nella v1.0**: si procede al rilascio 1.0 con "Ho schierato" solo in chat private (già completo, testato, ADR 0021 chiusa), e la variante gruppi diventa la prima cosa pianificata per la **v1.1**, subito dopo il tag `v1.0.0`. Tutto il lavoro di design già fatto (bivio chiuso + bivi ancora aperti) è preservato nella sezione "Roadmap verso la v1.1" sotto, non perso.
 
-✅ **Promemoria nei topic dei gruppi forum** (2026-08-28, target `v1.2.0`): nei supergruppi con i topic attivi, `/promemoria_on`/`/personalizza_orari` (comando o bottone) eseguiti dentro un topic legano lì la consegna dei promemoria di quella chat; ripetere il comando in un topic diverso sposta il binding. Nessun comando nuovo, nessun nome di topic salvato (limite del Bot API, verificato). Decisioni in **ADR 0025**.
+✅ **Promemoria nei topic dei gruppi forum** (2026-08-28, in prod da `v1.2.0`): nei supergruppi con i topic attivi, `/promemoria_on`/`/personalizza_orari` (comando o bottone) eseguiti dentro un topic legano lì la consegna dei promemoria di quella chat; ripetere il comando in un topic diverso sposta il binding. Nessun comando nuovo, nessun nome di topic salvato (limite del Bot API, verificato). Decisioni in **ADR 0025**.
+
+🔜 **Bottoni di `/promemoria` topic-aware — patch della 1.2**: oggi, in un gruppo forum con i promemoria già attivi, `/promemoria` mostra solo il bottone di disattivazione, quindi **non c'è modo di spostare la consegna in un topic da tastiera**: bisogna per forza usare `/promemoria_on`, che è un comando legacy — non promosso dal bot né presente nella lista comandi di Telegram (ADR 0018, Amendment 2026-07-10). Il rilevamento è fattibile: `telegram.Chat.is_forum` dice se il gruppo è un forum e `topic_thread_id()` (`telegram/commands.py`) dice da quale topic arriva il comando, quindi `build_subscription_keyboard` può aggiungere un bottone "manda in questo topic" quando il topic corrente è diverso da `subscriptions.message_thread_id`. Da rilasciare come `v1.2.x` (fix su `main`, poi cherry-pick su `release-1.2`).
 
 ## Roadmap verso la v1.1 (dopo il rilascio 1.0)
 
