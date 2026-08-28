@@ -213,6 +213,16 @@ def subscription_already_enabled(reminder_offsets: Sequence[timedelta]) -> str:
     )
 
 
+def subscription_topic_bound() -> str:
+    """Fragment appended to a subscribe/offsets confirmation (ADR 0025), not a standalone body."""
+    return "\n📌 Li manderò solo in questo topic."
+
+
+def subscription_topic_unbound() -> str:
+    """Fragment appended to a subscribe/offsets confirmation (ADR 0025), not a standalone body."""
+    return "\n📌 Torno a mandarli nella chat principale."
+
+
 def subscription_disabled() -> str:
     return "🔕 Promemoria disattivati in questa chat. Se ti penti, /promemoria ti aspetta 😏"
 

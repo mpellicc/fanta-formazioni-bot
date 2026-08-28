@@ -35,7 +35,8 @@ class Repository:
                     chat_type TEXT NOT NULL,
                     reminder_offsets TEXT NOT NULL,
                     origin TEXT NOT NULL DEFAULT 'env',
-                    created_at TEXT
+                    created_at TEXT,
+                    message_thread_id INTEGER
                 )
                 """
             )
@@ -49,6 +50,9 @@ class Repository:
             # rather than backfilling a fabricated join date (ADR 0022).
             if "created_at" not in columns:
                 self._conn.execute("ALTER TABLE subscriptions ADD COLUMN created_at TEXT")
+            # Pre-forum-topic databases: existing rows have no bound topic (ADR 0025).
+            if "message_thread_id" not in columns:
+                self._conn.execute("ALTER TABLE subscriptions ADD COLUMN message_thread_id INTEGER")
             # Append-only lifecycle log: subscriptions only ever holds the active
             # set, so leaving is otherwise invisible (ADR 0024).
             self._conn.execute(
@@ -124,12 +128,17 @@ class Repository:
         with self._conn:
             self._conn.execute(
                 """
-                INSERT INTO subscriptions (chat_id, chat_type, reminder_offsets, origin, created_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO subscriptions
+                    (chat_id, chat_type, reminder_offsets, origin, created_at, message_thread_id)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT (chat_id) DO UPDATE SET
                     chat_type = excluded.chat_type,
                     reminder_offsets = excluded.reminder_offsets,
                     origin = excluded.origin
+                    -- message_thread_id is deliberately NOT updated here, same as
+                    -- created_at above: _post_init re-seeds the env channel on every
+                    -- restart, and a bound topic must survive that reseed untouched
+                    -- (moving it goes through update_subscription_thread instead).
                 """,
                 (
                     subscription.chat_id,
@@ -137,6 +146,7 @@ class Repository:
                     json.dumps(list(subscription.reminder_offsets)),
                     subscription.origin,
                     datetime.now(UTC).isoformat(),
+                    subscription.message_thread_id,
                 ),
             )
             if is_new:
@@ -162,18 +172,19 @@ class Repository:
 
     def get_subscription(self, chat_id: int) -> Subscription | None:
         row = self._conn.execute(
-            "SELECT chat_id, chat_type, reminder_offsets, origin FROM subscriptions"
-            " WHERE chat_id = ?",
+            "SELECT chat_id, chat_type, reminder_offsets, origin, message_thread_id"
+            " FROM subscriptions WHERE chat_id = ?",
             (chat_id,),
         ).fetchone()
         if row is None:
             return None
-        chat_id, chat_type, offsets, origin = row
+        chat_id, chat_type, offsets, origin, message_thread_id = row
         return Subscription(
             chat_id=chat_id,
             chat_type=chat_type,
             reminder_offsets=tuple(json.loads(offsets)),
             origin=origin,
+            message_thread_id=message_thread_id,
         )
 
     def update_subscription_offsets(self, chat_id: int, offsets_seconds: Sequence[int]) -> bool:
@@ -182,6 +193,15 @@ class Repository:
             cursor = self._conn.execute(
                 "UPDATE subscriptions SET reminder_offsets = ? WHERE chat_id = ?",
                 (json.dumps(list(offsets_seconds)), chat_id),
+            )
+        return cursor.rowcount > 0
+
+    def update_subscription_thread(self, chat_id: int, message_thread_id: int | None) -> bool:
+        """Update message_thread_id on an existing subscription; report whether a row matched."""
+        with self._conn:
+            cursor = self._conn.execute(
+                "UPDATE subscriptions SET message_thread_id = ? WHERE chat_id = ?",
+                (message_thread_id, chat_id),
             )
         return cursor.rowcount > 0
 
@@ -224,7 +244,8 @@ class Repository:
 
     def get_subscriptions(self) -> list[Subscription]:
         rows = self._conn.execute(
-            "SELECT chat_id, chat_type, reminder_offsets, origin FROM subscriptions"
+            "SELECT chat_id, chat_type, reminder_offsets, origin, message_thread_id"
+            " FROM subscriptions"
         )
         return [
             Subscription(
@@ -232,8 +253,9 @@ class Repository:
                 chat_type=chat_type,
                 reminder_offsets=tuple(json.loads(offsets)),
                 origin=origin,
+                message_thread_id=message_thread_id,
             )
-            for chat_id, chat_type, offsets, origin in rows
+            for chat_id, chat_type, offsets, origin, message_thread_id in rows
         ]
 
     # --- sent reminders ---

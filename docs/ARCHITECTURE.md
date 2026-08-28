@@ -118,7 +118,8 @@ no explicit reset.
 matchdays            (round INTEGER PRIMARY KEY, kickoff_utc TEXT NOT NULL)          -- real kickoff, ISO 8601 UTC
 subscriptions         (chat_id INTEGER PRIMARY KEY, chat_type TEXT NOT NULL,
                        reminder_offsets TEXT NOT NULL,                               -- JSON array of seconds
-                       origin TEXT NOT NULL DEFAULT 'env')                           -- 'env' (config-seeded) | 'user'
+                       origin TEXT NOT NULL DEFAULT 'env',                           -- 'env' (config-seeded) | 'user'
+                       message_thread_id INTEGER)                                    -- forum topic to deliver to, NULL = none (ADR 0025)
 sent_reminders        (chat_id INTEGER, round INTEGER, offset_seconds INTEGER,
                        UNIQUE(chat_id, round, offset_seconds))
 lineup_confirmations  (chat_id INTEGER, round INTEGER, UNIQUE(chat_id, round))       -- ADR 0021
@@ -126,6 +127,8 @@ subscription_events   (id INTEGER PK, chat_id, chat_type, origin, event, occurre
 ```
 
 `subscription_events` is the append-only lifecycle log read by *osservatorio-hq* (ADR 0024): `subscribed` on a real insert, `unsubscribed` on `/promemoria_off` (still a user, just not active), `dead_chat` on the pruning of ADR 0023 (unreachable). The bot never reads it; each row is written in the same transaction as the `subscriptions` change it describes.
+
+In forum-mode supergroups, running `/promemoria_on` or `/personalizza_orari` (command or button) inside a topic binds that chat's reminders to that topic (`message_thread_id`); running it again from a different topic moves the binding (ADR 0025). Outside forums, and in "General", `message_thread_id` stays `NULL` and delivery is unchanged.
 
 `matchdays` fully regenerates from the calendar feed. `sent_reminders` and `lineup_confirmations` are disposable (worst case after deletion: a duplicate reminder, or a round's reminders un-silencing). `subscriptions` is **not** regenerable: it holds every user/group's `/promemoria_on` state and (since ADR 0013) custom `reminder_offsets` — back it up before anything destructive.
 
