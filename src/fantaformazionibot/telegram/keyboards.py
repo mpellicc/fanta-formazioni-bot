@@ -218,17 +218,21 @@ def build_group_lineup_keyboard(round_: int, confirmed: int, total: int) -> Inli
     One keyboard is shared by every member, so it can't reflect who already confirmed:
     both buttons are always shown and each acts on the presser alone.
     """
+    # One button per row: side by side, Telegram truncates the labels and the counter
+    # — the whole point of the group variant — is the first thing to go.
     return InlineKeyboardMarkup(
         [
             [
                 InlineKeyboardButton(
                     f"✅ {ACTION_LINEUP_CONFIRM} ({confirmed}/{total})",
                     callback_data=encode_group_confirm(round_),
-                ),
+                )
+            ],
+            [
                 InlineKeyboardButton(
                     f"↩️ {ACTION_LINEUP_UNDO}", callback_data=encode_group_undo(round_)
-                ),
-            ]
+                )
+            ],
         ]
     )
 
