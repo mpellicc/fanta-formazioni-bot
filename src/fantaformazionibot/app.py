@@ -33,6 +33,11 @@ def setup_logging() -> None:
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("apscheduler").setLevel(logging.WARNING)
+    # Library warnings go through the `warnings` module, which bypasses the format
+    # above and emits unparsable lines. Route them into logging so they follow the
+    # same contract (ADR 0028). Warnings raised at import time, before this runs,
+    # still escape — see the known limit in that ADR.
+    logging.captureWarnings(True)
 
 
 async def _post_init(application: BotApp) -> None:
