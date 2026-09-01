@@ -29,7 +29,7 @@ All four checks (ruff check, ruff format --check, mypy, pytest) must pass before
 
 - **`main` is the trunk and the default branch** (dev bot deploys from every push to it). Feature branches → PR into `main`, merged with **squash**. See ADR 0017.
 - **Releases are git tags** `vX.Y.Z`, not PRs. Tagging a commit on `main` (or on the current `release-X.Y`, see below) and pushing the tag deploys **production** and creates the GitHub Release; no version bump commit, no release PR. The version is not tracked in `pyproject.toml` (removed — ADR 0017).
-- **Seasonal maintenance**: each minor gets a long-running `release-X.Y` branch, cut from `main` at its tag, for in-season bugfixes only (patch tags `vX.Y.z`) — currently **`release-1.2`**. Fix on `main` first, then cherry-pick to the release branch and tag the patch — never fix on the release branch first. A minor can still ship mid-season straight from `main`: production follows the tag, not the branch (ADR 0017 + amendment).
+- **Seasonal maintenance**: each minor gets a long-running `release-X.Y` branch, cut from `main` at its tag, for in-season bugfixes only (patch tags `vX.Y.z`) — currently **`release-1.3`**. Fix on `main` first, then cherry-pick to the release branch and tag the patch — never fix on the release branch first. A minor can still ship mid-season straight from `main`: production follows the tag, not the branch (ADR 0017 + amendment).
 - Do NOT add `Co-Authored-By` trailers to commits or "Generated with" footers to PR bodies.
 - Never edit `.env`/`compose.yaml` on the VM: the deploy pipeline overwrites them from GitHub environment secrets/vars (ADR 0010). Config changes = update the GitHub value, re-run Deploy.
 
