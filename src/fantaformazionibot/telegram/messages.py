@@ -6,9 +6,13 @@ Voice & tone: ADR 0018 (goliardico-fantacalcistico, medium intensity, clean).
 import html
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
 
 from fantaformazionibot import format as fmt
 from fantaformazionibot.telegram import keyboards
+
+if TYPE_CHECKING:  # pragma: no cover - import cycle: commands.py imports this module
+    from fantaformazionibot.telegram.commands import GroupConfirmResult
 
 OFFSETS_USAGE_EXAMPLE = "/personalizza_orari 24h 1h 5m"
 
@@ -39,8 +43,10 @@ def help_() -> str:
         "con bottone per attivarli/disattivarli\n"
         "• /personalizza_orari — scegli gli orari dei promemoria da una tastiera di caselle, "
         "oppure passa direttamente gli orari come argomenti\n"
-        "• /ho_schierato — silenzia i promemoria residui della prossima giornata "
-        "(solo in chat privata)\n"
+        "• /ho_schierato — silenzia i promemoria residui della prossima giornata; "
+        "nei gruppi si fermano quando hanno schierato tutti\n"
+        "• /iscrizioni — nei gruppi, chi gioca si registra come manager "
+        "(serve al conteggio di /ho_schierato)\n"
         "• /start — presentazione del bot\n"
         "• /help — questo messaggio\n\n"
         "Nella tastiera di /personalizza_orari, il bottone "
@@ -48,7 +54,8 @@ def help_() -> str:
         "un orario non in lista: rispondi al messaggio che ti invio con un formato come "
         "<code>2g,12h,10m</code> (unità m/h/g).\n\n"
         "Nei gruppi, /promemoria_on, /promemoria_off e /personalizza_orari "
-        "sono riservati agli amministratori (anche i bottoni corrispondenti).\n\n"
+        "sono riservati agli amministratori (anche i bottoni corrispondenti); "
+        "chiudere e riaprire le iscrizioni pure. /ho_schierato invece è di tutti.\n\n"
         f"Per segnalazioni o suggerimenti scrivi a {MAINTAINER_USERNAME}."
     )
 
@@ -183,11 +190,101 @@ def lineup_not_confirmed() -> str:
     return "Non risultava nessuna conferma da annullare, mister."
 
 
-def lineup_private_only() -> str:
-    return (
-        "Questa funzione è disponibile solo in chat privata per ora, mister: "
-        "scrivimi in privato per usarla."
+def group_lineup_confirmed(round_: int, result: "GroupConfirmResult") -> str:
+    """Feedback after one manager confirms in a group (ADR 0027)."""
+    head = (
+        f"Avevi già segnato la <b>Giornata {round_}</b>, mister"
+        if result.already
+        else f"✅ Segnato: hai schierato per la <b>Giornata {round_}</b>"
     )
+    count = f"\nSiamo a <b>{result.confirmed}/{result.total}</b> nel gruppo."
+    if result.complete:
+        silenced = (
+            f"{head}.{count}\n"
+            "Hanno schierato tutti: niente più promemoria per questa giornata, "
+            "si riattivano da soli alla prossima."
+        )
+        if result.roster_closed:
+            return silenced
+        # The lazy roster is exactly where "tutti" can mean "l'unico che ha cliccato".
+        return (
+            f"{silenced}\n"
+            f"Le iscrizioni però sono ancora aperte: se manca qualcuno, con /iscrizioni "
+            f"può registrarsi con <b>{keyboards.ACTION_ROSTER_JOIN}</b> e i promemoria "
+            f"riprendono finché non ha schierato anche lui."
+        )
+    if not result.roster_closed:
+        return (
+            f"{head}.{count}\n"
+            f"Le iscrizioni sono ancora aperte: con /iscrizioni chi manca può registrarsi "
+            f"con <b>{keyboards.ACTION_ROSTER_JOIN}</b>, così il conteggio è quello vero."
+        )
+    return f"{head}.{count}\nI promemoria si fermano quando hanno schierato tutti."
+
+
+def group_lineup_cancelled(round_: int, result: "GroupConfirmResult") -> str:
+    return (
+        f"↩️ Annullato: non risulti più schierato per la <b>Giornata {round_}</b>.\n"
+        f"Siamo a <b>{result.confirmed}/{result.total}</b>, i promemoria del gruppo proseguono."
+    )
+
+
+def group_lineup_confirmed_toast(result: "GroupConfirmResult") -> str:
+    """Short toast on the button press; the message keyboard carries the counter."""
+    if result.complete:
+        return f"Hanno schierato tutti ({result.confirmed}/{result.total}): promemoria fermi."
+    if result.already:
+        return f"Eri già segnato. Siamo a {result.confirmed}/{result.total}."
+    return f"Segnato. Siamo a {result.confirmed}/{result.total}."
+
+
+def group_lineup_cancelled_toast(result: "GroupConfirmResult") -> str:
+    return f"Conferma annullata. Siamo a {result.confirmed}/{result.total}."
+
+
+def roster_status(participants: int, *, closed: bool) -> str:
+    if closed:
+        return (
+            f"<b>Iscrizioni chiuse.</b> "
+            f"Manager registrati in questo gruppo: <b>{participants}</b>.\n"
+            f"I promemoria di una giornata si fermano quando hanno schierato tutti.\n"
+            f"Se la rosa è cambiata, un amministratore può usare "
+            f"<b>{keyboards.ACTION_ROSTER_REOPEN}</b>: azzera l'elenco e riparte da capo."
+        )
+    return (
+        f"<b>Iscrizioni aperte.</b> Manager registrati finora: <b>{participants}</b>.\n"
+        f"Chi gioca in questo gruppo tocchi <b>{keyboards.ACTION_ROSTER_JOIN}</b>. "
+        f"Quando ci siete tutti, un amministratore chiude con "
+        f"<b>{keyboards.ACTION_ROSTER_CLOSE}</b>."
+    )
+
+
+def roster_group_only() -> str:
+    return (
+        "Le iscrizioni servono solo nei gruppi, mister: qui in privato "
+        "/ho_schierato silenzia già i promemoria da solo."
+    )
+
+
+def roster_joined(participants: int) -> str:
+    return f"Sei nell'elenco dei manager. Siamo in {participants}."
+
+
+def roster_already_joined() -> str:
+    return "Eri già nell'elenco dei manager, mister."
+
+
+def roster_closed_toast() -> str:
+    return "Le iscrizioni sono chiuse: un amministratore può riaprirle."
+
+
+def lineup_group_use_command() -> str:
+    """Defensive toast: a private-shaped lineup button pressed in a group (ADR 0027)."""
+    return "Qui nel gruppo la conferma è per manager: usa /ho_schierato."
+
+
+def group_lineup_nothing_to_cancel() -> str:
+    return "Non risultava nessuna conferma tua da annullare, mister."
 
 
 def unknown_command() -> str:

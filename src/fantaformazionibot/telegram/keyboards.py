@@ -21,6 +21,9 @@ ACTION_CUSTOM = "Personalizzati"
 ACTION_BACK = "Indietro"
 ACTION_LINEUP_CONFIRM = "Ho schierato"
 ACTION_LINEUP_UNDO = "Annulla conferma"
+ACTION_ROSTER_JOIN = "Sono un manager"
+ACTION_ROSTER_CLOSE = "Chiudi iscrizioni"
+ACTION_ROSTER_REOPEN = "Riapri iscrizioni"
 
 OFFSET_PRESETS: tuple[timedelta, ...] = (
     timedelta(days=2),
@@ -42,6 +45,14 @@ CB_CUSTOM_PREFIX = "off:custom:"
 CB_BACK_PREFIX = "off:back:"
 CB_LINEUP_CONFIRM_PREFIX = "lineup:confirm:"
 CB_LINEUP_UNDO_PREFIX = "lineup:undo:"
+# Group roster and per-user lineup confirmations (ADR 0027). The confirmed/total counter
+# lives in the button label, never in callback_data: the payload stays a bare round, so
+# a stale keyboard can't feed a wrong count back to the handler.
+CB_GROUP_CONFIRM_PREFIX = "glineup:confirm:"
+CB_GROUP_UNDO_PREFIX = "glineup:undo:"
+CB_ROSTER_JOIN = "roster:join"
+CB_ROSTER_CLOSE = "roster:close"
+CB_ROSTER_REOPEN = "roster:reopen"
 
 
 def _decode_masked(prefix: str, data: str) -> int:
@@ -183,3 +194,56 @@ def build_lineup_confirmed_keyboard(round_: int) -> InlineKeyboardMarkup:
         f"↩️ {ACTION_LINEUP_UNDO}", callback_data=encode_lineup_undo(round_)
     )
     return InlineKeyboardMarkup([[button]])
+
+
+def encode_group_confirm(round_: int) -> str:
+    return f"{CB_GROUP_CONFIRM_PREFIX}{round_}"
+
+
+def decode_group_confirm(data: str) -> int:
+    return _decode_masked(CB_GROUP_CONFIRM_PREFIX, data)
+
+
+def encode_group_undo(round_: int) -> str:
+    return f"{CB_GROUP_UNDO_PREFIX}{round_}"
+
+
+def decode_group_undo(data: str) -> int:
+    return _decode_masked(CB_GROUP_UNDO_PREFIX, data)
+
+
+def build_group_lineup_keyboard(round_: int, confirmed: int, total: int) -> InlineKeyboardMarkup:
+    """Reminder keyboard for groups (ADR 0027).
+
+    One keyboard is shared by every member, so it can't reflect who already confirmed:
+    both buttons are always shown and each acts on the presser alone.
+    """
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    f"✅ {ACTION_LINEUP_CONFIRM} ({confirmed}/{total})",
+                    callback_data=encode_group_confirm(round_),
+                ),
+                InlineKeyboardButton(
+                    f"↩️ {ACTION_LINEUP_UNDO}", callback_data=encode_group_undo(round_)
+                ),
+            ]
+        ]
+    )
+
+
+def build_roster_keyboard(*, closed: bool) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if not closed:
+        rows.append(
+            [InlineKeyboardButton(f"🙋 {ACTION_ROSTER_JOIN}", callback_data=CB_ROSTER_JOIN)]
+        )
+        rows.append(
+            [InlineKeyboardButton(f"🔒 {ACTION_ROSTER_CLOSE}", callback_data=CB_ROSTER_CLOSE)]
+        )
+    else:
+        rows.append(
+            [InlineKeyboardButton(f"🔓 {ACTION_ROSTER_REOPEN}", callback_data=CB_ROSTER_REOPEN)]
+        )
+    return InlineKeyboardMarkup(rows)

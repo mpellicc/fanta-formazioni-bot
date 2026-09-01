@@ -32,12 +32,16 @@ from fantaformazionibot.telegram import keyboards, messages
 from fantaformazionibot.telegram.commands import (
     OFFSETS_ERROR_MESSAGES,
     OffsetsParseError,
+    confirm_group_lineup,
     confirm_lineup,
+    join_roster,
     parse_offsets_args,
+    reset_group_roster,
     set_offsets,
     subscribe,
     topic_suffix,
     topic_thread_id,
+    undo_group_lineup_confirmation,
     undo_lineup_confirmation,
     unsubscribe,
     user_may_manage_subscription,
@@ -137,7 +141,7 @@ async def lineup_confirm_callback(update: Update, context: ContextTypes.DEFAULT_
         return
     chat = query.message.chat
     if chat.type != ChatType.PRIVATE:
-        await query.answer(messages.lineup_private_only(), show_alert=True)
+        await query.answer(messages.lineup_group_use_command(), show_alert=True)
         return
 
     round_ = keyboards.decode_lineup_confirm(query.data or "")
@@ -168,6 +172,106 @@ async def lineup_undo_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         else messages.lineup_not_confirmed()
     )
     await _edit_text(query, text, keyboards.build_lineup_confirm_keyboard(round_))
+
+
+async def group_lineup_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """ "Ho schierato" in a group: a personal declaration, so no admin gate (ADR 0027)."""
+    query = await _gate(update, context)
+    if query is None or query.message is None:
+        return
+    chat = query.message.chat
+
+    round_ = keyboards.decode_group_confirm(query.data or "")
+    repository: Repository = context.bot_data["repository"]
+    result = confirm_group_lineup(
+        chat.id, round_, query.from_user.id, repository, context.application
+    )
+
+    await query.answer(messages.group_lineup_confirmed_toast(result), show_alert=result.complete)
+    # The counter is re-read from the DB inside confirm_group_lineup, never derived from the
+    # label we were shown, so near-simultaneous taps converge on the right number.
+    await _edit_markup(
+        query, keyboards.build_group_lineup_keyboard(round_, result.confirmed, result.total)
+    )
+
+
+async def group_lineup_undo_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = await _gate(update, context)
+    if query is None or query.message is None:
+        return
+    chat = query.message.chat
+
+    round_ = keyboards.decode_group_undo(query.data or "")
+    repository: Repository = context.bot_data["repository"]
+    result = undo_group_lineup_confirmation(
+        chat.id, round_, query.from_user.id, repository, context.application
+    )
+
+    if result.already:
+        await query.answer(messages.group_lineup_nothing_to_cancel(), show_alert=True)
+        return
+    await query.answer(messages.group_lineup_cancelled_toast(result))
+    await _edit_markup(
+        query, keyboards.build_group_lineup_keyboard(round_, result.confirmed, result.total)
+    )
+
+
+async def roster_join_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Self-registration: open to everyone, it only speaks for the presser (ADR 0027)."""
+    query = await _gate(update, context)
+    if query is None or query.message is None:
+        return
+    chat = query.message.chat
+
+    repository: Repository = context.bot_data["repository"]
+    if repository.is_roster_closed(chat.id):
+        await query.answer(messages.roster_closed_toast(), show_alert=True)
+        return
+
+    joined = join_roster(chat.id, query.from_user.id, repository, context.application)
+    participants = repository.count_group_participants(chat.id)
+    await query.answer(
+        messages.roster_joined(participants) if joined else messages.roster_already_joined()
+    )
+    if joined:
+        await _edit_text(
+            query,
+            messages.roster_status(participants, closed=False),
+            keyboards.build_roster_keyboard(closed=False),
+        )
+
+
+async def roster_close_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _set_roster_closed(update, context, closed=True)
+
+
+async def roster_reopen_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _set_roster_closed(update, context, closed=False)
+
+
+async def _set_roster_closed(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, *, closed: bool
+) -> None:
+    """Opening and closing enrollment reconfigures the whole chat, so it is admin-only."""
+    query = await _gate(update, context)
+    if query is None or query.message is None:
+        return
+    chat = query.message.chat
+    if not await _may_manage(query, chat, context):
+        return
+
+    repository: Repository = context.bot_data["repository"]
+    if closed:
+        repository.close_roster(chat.id)
+    else:
+        reset_group_roster(chat.id, repository, context.application)
+
+    await query.answer()
+    await _edit_text(
+        query,
+        messages.roster_status(repository.count_group_participants(chat.id), closed=closed),
+        keyboards.build_roster_keyboard(closed=closed),
+    )
 
 
 async def toggle_offset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -444,5 +548,31 @@ def register(application: BotApp) -> None:
     application.add_handler(
         CallbackQueryHandler(
             lineup_undo_callback, pattern=rf"^{re.escape(keyboards.CB_LINEUP_UNDO_PREFIX)}"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            group_lineup_confirm_callback,
+            pattern=rf"^{re.escape(keyboards.CB_GROUP_CONFIRM_PREFIX)}",
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            group_lineup_undo_callback, pattern=rf"^{re.escape(keyboards.CB_GROUP_UNDO_PREFIX)}"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            roster_join_callback, pattern=rf"^{re.escape(keyboards.CB_ROSTER_JOIN)}$"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            roster_close_callback, pattern=rf"^{re.escape(keyboards.CB_ROSTER_CLOSE)}$"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            roster_reopen_callback, pattern=rf"^{re.escape(keyboards.CB_ROSTER_REOPEN)}$"
         )
     )

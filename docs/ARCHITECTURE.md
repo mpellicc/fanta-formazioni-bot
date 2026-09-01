@@ -24,9 +24,10 @@ src/fantaformazionibot/
     jobs.py              PTB jobs: daily calendar refresh, reminder send, (re)scheduling
   telegram/
     commands.py          /start /help /prossima_scadenza /promemoria_on /promemoria_off
-                         /promemoria /personalizza_orari /ho_schierato + unknown-command
-                         fallback; subscribe/unsubscribe/set_offsets/confirm_lineup/
-                         undo_lineup_confirmation are shared with callbacks.py
+                         /promemoria /personalizza_orari /ho_schierato /iscrizioni
+                         + unknown-command fallback; subscribe/unsubscribe/set_offsets/
+                         confirm_lineup/undo_lineup_confirmation/confirm_group_lineup/
+                         undo_group_lineup_confirmation are shared with callbacks.py
     keyboards.py         inline keyboard builders + callback_data codec (pure, ADR 0015)
     callbacks.py         CallbackQueryHandler entry points + the "Personalizzati"
                          ConversationHandler (free-form offset input, ADR 0015)
@@ -98,11 +99,9 @@ exception: it is kept and reported to `DEBUG_CHAT_ID`, since `_post_init`
 re-seeds it anyway and only a human can restore the bot's access. A transient
 refusal (a closed forum topic) loses that one reminder and changes nothing else.
 
-### Confirming a lineup — "Ho schierato" (ADR 0021)
+### Confirming a lineup — "Ho schierato" (ADR 0021, ADR 0027)
 
-Private chats only (a group/channel subscription is shared by several
-distinct managers — see ADR 0021 for why that rules out a correct group
-version for now). `/ho_schierato` and the "✅ Ho schierato" button on
+In **private chats**, `/ho_schierato` and the "✅ Ho schierato" button on
 reminder messages both call `commands.confirm_lineup`, which inserts a
 `lineup_confirmations` row for `(chat_id, round)` and calls
 `reschedule_reminders` — the same full drop-and-rebuild used by
@@ -111,6 +110,24 @@ subscribe/unsubscribe/set_offsets, which now also skips any round already in
 deletes the row and reschedules again, resuming the round's remaining
 reminders. Confirmations are per-round, so round N+1 is unaffected and needs
 no explicit reset.
+
+In **groups** (ADR 0027) a subscription is shared by several distinct managers, so
+confirmations are tracked per `(chat_id, round, user_id)` in
+`group_lineup_confirmations` against a roster in `group_participants`. The Bot API
+cannot enumerate non-admin members, so the roster is built lazily: `/iscrizioni` posts
+the "🙋 Sono un manager" self-registration button (anyone may press), an admin closes
+enrollment with "🔒 Chiudi iscrizioni", and confirming also enrols the presser while
+enrollment is open. `commands.confirm_group_lineup` writes the per-user row and then
+`_sync_group_silencing` keeps the per-chat `lineup_confirmations` flag in sync — set
+when every roster member has confirmed, cleared when one undoes. That is what lets
+`reminders/jobs.py` keep a single skip condition (`is_lineup_confirmed(chat_id, round)`)
+for both private and group chats. The reminder keyboard carries the counter in the
+button label ("✅ Ho schierato (3/5)"), re-read from the DB after each write.
+"🔓 Riapri iscrizioni" (admin) resets roster, confirmations and silencing flags for the
+chat. Accepted limit: whoever never registers never enters the roster, so "everyone
+confirmed" is an approximation — see ADR 0027.
+
+The channel keeps no button at all (ADR 0021): many subscribers, no meaningful roster.
 
 ## Database schema
 
@@ -122,7 +139,12 @@ subscriptions         (chat_id INTEGER PRIMARY KEY, chat_type TEXT NOT NULL,
                        message_thread_id INTEGER)                                    -- forum topic to deliver to, NULL = none (ADR 0025)
 sent_reminders        (chat_id INTEGER, round INTEGER, offset_seconds INTEGER,
                        UNIQUE(chat_id, round, offset_seconds))
-lineup_confirmations  (chat_id INTEGER, round INTEGER, UNIQUE(chat_id, round))       -- ADR 0021
+lineup_confirmations  (chat_id INTEGER, round INTEGER, UNIQUE(chat_id, round))       -- ADR 0021; for groups it is the derived silencing flag (ADR 0027)
+group_participants    (chat_id INTEGER, user_id INTEGER, joined_at TEXT NOT NULL,
+                       UNIQUE(chat_id, user_id))                                     -- lazy group roster (ADR 0027)
+group_rosters         (chat_id INTEGER PRIMARY KEY, closed_at TEXT)                  -- NULL = enrollment open (ADR 0027)
+group_lineup_confirmations (chat_id INTEGER, round INTEGER, user_id INTEGER,
+                       UNIQUE(chat_id, round, user_id))                              -- ADR 0027
 subscription_events   (id INTEGER PK, chat_id, chat_type, origin, event, occurred_at) -- ADR 0024
 ```
 
@@ -130,7 +152,7 @@ subscription_events   (id INTEGER PK, chat_id, chat_type, origin, event, occurre
 
 In forum-mode supergroups, running `/promemoria_on` or `/personalizza_orari` (command or button) inside a topic binds that chat's reminders to that topic (`message_thread_id`); running it again from a different topic moves the binding (ADR 0025). Outside forums, and in "General", `message_thread_id` stays `NULL` and delivery is unchanged.
 
-`matchdays` fully regenerates from the calendar feed. `sent_reminders` and `lineup_confirmations` are disposable (worst case after deletion: a duplicate reminder, or a round's reminders un-silencing). `subscriptions` is **not** regenerable: it holds every user/group's `/promemoria_on` state and (since ADR 0013) custom `reminder_offsets` — back it up before anything destructive.
+`matchdays` fully regenerates from the calendar feed. `sent_reminders`, `lineup_confirmations` and the three `group_*` tables are disposable (worst case after deletion: a duplicate reminder, a round's reminders un-silencing, or a group roster to rebuild). `subscriptions` is **not** regenerable: it holds every user/group's `/promemoria_on` state and (since ADR 0013) custom `reminder_offsets` — back it up before anything destructive.
 
 ## Datetime policy
 

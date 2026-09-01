@@ -86,12 +86,107 @@ def undo_lineup_confirmation(
     return deleted
 
 
+@dataclass(frozen=True, slots=True)
+class GroupConfirmResult:
+    """Outcome of one manager confirming (or undoing) in a group. See ADR 0027."""
+
+    already: bool
+    confirmed: int
+    total: int
+    complete: bool
+    roster_closed: bool
+
+
+def join_roster(chat_id: int, user_id: int, repository: Repository, application: BotApp) -> bool:
+    """Add a manager to the roster; returns whether they were new. No-op once closed.
+
+    A new manager invalidates any "everyone confirmed" already reached, so the chat's
+    silencing flags are dropped: reminders resume until the newcomer confirms too.
+    """
+    if repository.is_roster_closed(chat_id):
+        return False
+    if not repository.add_group_participant(chat_id, user_id):
+        return False
+    repository.clear_lineup_confirmations(chat_id)
+    reschedule_reminders(application)
+    return True
+
+
+def _group_result(
+    chat_id: int, round_: int, repository: Repository, *, already: bool
+) -> GroupConfirmResult:
+    return GroupConfirmResult(
+        already=already,
+        confirmed=repository.count_group_lineup_confirmations(chat_id, round_),
+        total=repository.count_group_participants(chat_id),
+        complete=repository.is_group_lineup_complete(chat_id, round_),
+        roster_closed=repository.is_roster_closed(chat_id),
+    )
+
+
+def _sync_group_silencing(
+    chat_id: int, round_: int, repository: Repository, application: BotApp, *, complete: bool
+) -> None:
+    """Keep the per-chat lineup_confirmations flag in sync with the roster (ADR 0027).
+
+    Reusing that table as the derived silencing flag is what lets reminders/jobs.py keep
+    its skip logic unchanged: it still only asks is_lineup_confirmed(chat_id, round).
+    """
+    silenced = repository.is_lineup_confirmed(chat_id, round_)
+    if complete and not silenced:
+        repository.mark_lineup_confirmed(chat_id, round_)
+        reschedule_reminders(application)
+    elif not complete and silenced:
+        repository.unmark_lineup_confirmed(chat_id, round_)
+        reschedule_reminders(application)
+
+
+def reset_group_roster(chat_id: int, repository: Repository, application: BotApp) -> None:
+    """Reopen enrollment from scratch (ADR 0027).
+
+    An empty roster is never "complete", so every silencing flag for the chat has to go
+    with it, otherwise a round stays muted with nobody left on the roster to unmute it.
+    """
+    repository.reopen_roster(chat_id)
+    repository.clear_lineup_confirmations(chat_id)
+    reschedule_reminders(application)
+
+
+def confirm_group_lineup(
+    chat_id: int, round_: int, user_id: int, repository: Repository, application: BotApp
+) -> GroupConfirmResult:
+    """Core of /ho_schierato and the glineup:confirm: callback in groups (ADR 0027).
+
+    Confirming also enrols the presser while enrollment is open: that zero-setup fallback
+    is what makes the feature work in groups that never run /iscrizioni.
+    """
+    already = repository.is_group_lineup_confirmed(chat_id, round_, user_id)
+    if not repository.is_roster_closed(chat_id):
+        # Zero-setup fallback: confirming enrols you. No flag reset needed here — the
+        # _sync_group_silencing below recomputes completeness against the new roster.
+        repository.add_group_participant(chat_id, user_id)
+    if not already:
+        repository.mark_group_lineup_confirmed(chat_id, round_, user_id)
+    result = _group_result(chat_id, round_, repository, already=already)
+    _sync_group_silencing(chat_id, round_, repository, application, complete=result.complete)
+    return result
+
+
+def undo_group_lineup_confirmation(
+    chat_id: int, round_: int, user_id: int, repository: Repository, application: BotApp
+) -> GroupConfirmResult:
+    """Core of the group "Annulla conferma" button: removes the presser's own row only."""
+    deleted = repository.unmark_group_lineup_confirmed(chat_id, round_, user_id)
+    result = _group_result(chat_id, round_, repository, already=not deleted)
+    _sync_group_silencing(chat_id, round_, repository, application, complete=result.complete)
+    return result
+
+
 async def lineup_confirmed_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message is None or update.effective_chat is None:
         return
     chat = update.effective_chat
-    if chat.type != ChatType.PRIVATE:
-        await update.message.reply_text(messages.lineup_private_only(), parse_mode=ParseMode.HTML)
+    if chat.type == ChatType.CHANNEL:
         return
 
     settings: Settings = context.bot_data["settings"]
@@ -103,6 +198,22 @@ async def lineup_confirmed_command(update: Update, context: ContextTypes.DEFAULT
         return
 
     matchday, _ = upcoming
+
+    if chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        if update.message.from_user is None:
+            return
+        result = confirm_group_lineup(
+            chat.id, matchday.round, update.message.from_user.id, repository, context.application
+        )
+        await update.message.reply_text(
+            messages.group_lineup_confirmed(matchday.round, result),
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboards.build_group_lineup_keyboard(
+                matchday.round, result.confirmed, result.total
+            ),
+        )
+        return
+
     already = confirm_lineup(chat.id, matchday.round, repository, context.application)
 
     text = (
@@ -114,6 +225,24 @@ async def lineup_confirmed_command(update: Update, context: ContextTypes.DEFAULT
         text,
         parse_mode=ParseMode.HTML,
         reply_markup=keyboards.build_lineup_confirmed_keyboard(matchday.round),
+    )
+
+
+async def roster_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/iscrizioni: roster status and enrollment controls for a group (ADR 0027)."""
+    if update.message is None or update.effective_chat is None:
+        return
+    chat = update.effective_chat
+    if chat.type not in (ChatType.GROUP, ChatType.SUPERGROUP):
+        await update.message.reply_text(messages.roster_group_only(), parse_mode=ParseMode.HTML)
+        return
+
+    repository: Repository = context.bot_data["repository"]
+    closed = repository.is_roster_closed(chat.id)
+    await update.message.reply_text(
+        messages.roster_status(repository.count_group_participants(chat.id), closed=closed),
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboards.build_roster_keyboard(closed=closed),
     )
 
 

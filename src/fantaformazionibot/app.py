@@ -13,6 +13,7 @@ from fantaformazionibot.telegram.commands import (
     help_command,
     lineup_confirmed_command,
     next_deadline_command,
+    roster_command,
     set_offsets_command,
     start_command,
     subscribe_command,
@@ -75,6 +76,7 @@ def run() -> None:
     application.add_handler(CommandHandler("promemoria", subscription_status_command, filters=gate))
     application.add_handler(CommandHandler("personalizza_orari", set_offsets_command, filters=gate))
     application.add_handler(CommandHandler("ho_schierato", lineup_confirmed_command, filters=gate))
+    application.add_handler(CommandHandler("iscrizioni", roster_command, filters=gate))
     callbacks.register(application)
     application.add_handler(MessageHandler(unknown_filter, unknown_command))
     application.add_error_handler(error_handler)
