@@ -363,6 +363,15 @@ async def start_custom_offsets(update: Update, context: ContextTypes.DEFAULT_TYP
 
     mask = keyboards.decode_custom(query.data or "")
     await query.answer()
+
+    # Re-entry: a previous custom-input flow is still open (allow_reentry below lets the
+    # entry point fire again). Restore its grid and drop its prompt before overwriting the
+    # user_data pointers, otherwise that message stays stuck on the waiting keyboard and
+    # its ForceReply prompt is orphaned.
+    assert context.user_data is not None
+    if _GRID_CHAT_ID in context.user_data:
+        await _restore_grid(context, mask=context.user_data.get(_GRID_MASK, 0))
+
     await _edit_markup(query, keyboards.build_offsets_waiting_keyboard(mask))
 
     thread_id = _query_thread_id(query)
@@ -373,7 +382,6 @@ async def start_custom_offsets(update: Update, context: ContextTypes.DEFAULT_TYP
         reply_markup=ForceReply(selective=True),
         message_thread_id=thread_id,
     )
-    assert context.user_data is not None
     context.user_data[_GRID_CHAT_ID] = chat.id
     context.user_data[_GRID_MESSAGE_ID] = query.message.message_id
     context.user_data[_GRID_MASK] = mask
@@ -506,6 +514,10 @@ custom_offsets_conversation = ConversationHandler(
     },
     fallbacks=[CommandHandler("annulla", cancel_custom_offsets)],
     conversation_timeout=300,
+    # Without this, pressing "Personalizzati" again while a custom-input flow is still open
+    # matches no handler in OFFSETS_CUSTOM_INPUT, and since no other handler covers the
+    # prefix the callback query is never answered: the button spins forever.
+    allow_reentry=True,
 )
 
 
