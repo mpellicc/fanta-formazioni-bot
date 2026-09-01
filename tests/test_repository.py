@@ -358,3 +358,105 @@ def test_migration_adds_message_thread_id_column_as_null_for_existing_rows(
     fetched = repository.get_subscription(-100)
     assert fetched is not None
     assert fetched.message_thread_id is None
+
+
+def test_add_group_participant_is_idempotent(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+
+    assert repository.add_group_participant(-100, 1) is True
+    assert repository.add_group_participant(-100, 1) is False
+    assert repository.get_group_participants(-100) == [1]
+    assert repository.count_group_participants(-100) == 1
+
+
+def test_group_participants_are_scoped_per_chat(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.add_group_participant(-100, 1)
+    repository.add_group_participant(-200, 2)
+
+    assert repository.get_group_participants(-100) == [1]
+    assert repository.get_group_participants(-200) == [2]
+
+
+def test_roster_is_open_until_closed(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+
+    assert repository.is_roster_closed(-100) is False
+    repository.close_roster(-100)
+    assert repository.is_roster_closed(-100) is True
+    repository.reopen_roster(-100)
+    assert repository.is_roster_closed(-100) is False
+
+
+def test_group_lineup_confirmation_roundtrip(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.add_group_participant(-100, 1)
+
+    assert repository.is_group_lineup_confirmed(-100, 7, 1) is False
+    repository.mark_group_lineup_confirmed(-100, 7, 1)
+    assert repository.is_group_lineup_confirmed(-100, 7, 1) is True
+    assert repository.unmark_group_lineup_confirmed(-100, 7, 1) is True
+    assert repository.unmark_group_lineup_confirmed(-100, 7, 1) is False
+
+
+def test_group_lineup_complete_requires_a_non_empty_roster(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.mark_group_lineup_confirmed(-100, 7, 1)
+
+    assert repository.is_group_lineup_complete(-100, 7) is False
+
+
+def test_group_lineup_complete_only_when_everyone_confirmed(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.add_group_participant(-100, 1)
+    repository.add_group_participant(-100, 2)
+
+    repository.mark_group_lineup_confirmed(-100, 7, 1)
+    assert repository.count_group_lineup_confirmations(-100, 7) == 1
+    assert repository.is_group_lineup_complete(-100, 7) is False
+
+    repository.mark_group_lineup_confirmed(-100, 7, 2)
+    assert repository.is_group_lineup_complete(-100, 7) is True
+
+
+def test_group_lineup_count_ignores_confirmations_from_non_participants(tmp_path: Path) -> None:
+    """A manager dropped by a roster reset must not keep the count inflated."""
+    repository = _repository(tmp_path)
+    repository.add_group_participant(-100, 1)
+    repository.mark_group_lineup_confirmed(-100, 7, 1)
+    repository.mark_group_lineup_confirmed(-100, 7, 999)
+
+    assert repository.count_group_lineup_confirmations(-100, 7) == 1
+
+
+def test_group_lineup_confirmations_are_per_round(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.add_group_participant(-100, 1)
+    repository.mark_group_lineup_confirmed(-100, 7, 1)
+
+    assert repository.is_group_lineup_complete(-100, 7) is True
+    assert repository.is_group_lineup_complete(-100, 8) is False
+
+
+def test_reopen_roster_clears_participants_and_confirmations(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.add_group_participant(-100, 1)
+    repository.mark_group_lineup_confirmed(-100, 7, 1)
+    repository.close_roster(-100)
+
+    repository.reopen_roster(-100)
+
+    assert repository.get_group_participants(-100) == []
+    assert repository.is_group_lineup_confirmed(-100, 7, 1) is False
+    assert repository.is_roster_closed(-100) is False
+
+
+def test_clear_lineup_confirmations_only_touches_that_chat(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.mark_lineup_confirmed(-100, 7)
+    repository.mark_lineup_confirmed(-200, 7)
+
+    repository.clear_lineup_confirmations(-100)
+
+    assert repository.is_lineup_confirmed(-100, 7) is False
+    assert repository.is_lineup_confirmed(-200, 7) is True

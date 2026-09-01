@@ -110,3 +110,41 @@ def test_build_lineup_confirmed_keyboard_encodes_round() -> None:
     markup = keyboards.build_lineup_confirmed_keyboard(7)
     button = markup.inline_keyboard[0][0]
     assert button.callback_data == keyboards.encode_lineup_undo(7)
+
+
+def test_group_confirm_roundtrip() -> None:
+    assert keyboards.decode_group_confirm(keyboards.encode_group_confirm(7)) == 7
+
+
+def test_group_undo_roundtrip() -> None:
+    assert keyboards.decode_group_undo(keyboards.encode_group_undo(7)) == 7
+
+
+def test_decode_group_confirm_rejects_other_prefixes() -> None:
+    with pytest.raises(ValueError):
+        keyboards.decode_group_confirm(keyboards.encode_lineup_confirm(7))
+
+
+def test_decode_group_undo_rejects_other_prefixes() -> None:
+    with pytest.raises(ValueError):
+        keyboards.decode_group_undo(keyboards.encode_group_confirm(7))
+
+
+def test_build_group_lineup_keyboard_shows_counter_and_both_actions() -> None:
+    markup = keyboards.build_group_lineup_keyboard(7, 3, 5)
+    confirm, undo = markup.inline_keyboard[0]
+    assert "(3/5)" in confirm.text
+    assert confirm.callback_data == keyboards.encode_group_confirm(7)
+    assert undo.callback_data == keyboards.encode_group_undo(7)
+
+
+def test_build_roster_keyboard_open_offers_join_and_close() -> None:
+    markup = keyboards.build_roster_keyboard(closed=False)
+    data = [button.callback_data for row in markup.inline_keyboard for button in row]
+    assert data == [keyboards.CB_ROSTER_JOIN, keyboards.CB_ROSTER_CLOSE]
+
+
+def test_build_roster_keyboard_closed_offers_only_reopen() -> None:
+    markup = keyboards.build_roster_keyboard(closed=True)
+    data = [button.callback_data for row in markup.inline_keyboard for button in row]
+    assert data == [keyboards.CB_ROSTER_REOPEN]

@@ -92,6 +92,36 @@ class Repository:
                 )
                 """
             )
+            # Group roster (ADR 0027): the Bot API cannot enumerate non-admin members, so
+            # the roster is built lazily from self-registrations and confirmations.
+            self._conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS group_participants (
+                    chat_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    joined_at TEXT NOT NULL,
+                    UNIQUE (chat_id, user_id)
+                )
+                """
+            )
+            self._conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS group_rosters (
+                    chat_id INTEGER PRIMARY KEY,
+                    closed_at TEXT
+                )
+                """
+            )
+            self._conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS group_lineup_confirmations (
+                    chat_id INTEGER NOT NULL,
+                    round INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    UNIQUE (chat_id, round, user_id)
+                )
+                """
+            )
 
     # --- matchdays ---
 
@@ -304,3 +334,126 @@ class Repository:
                 (chat_id, round_),
             )
         return cursor.rowcount > 0
+
+    def clear_lineup_confirmations(self, chat_id: int) -> None:
+        """Drop every silencing flag for a chat. Used when a group roster is reset (ADR 0027)."""
+        with self._conn:
+            self._conn.execute("DELETE FROM lineup_confirmations WHERE chat_id = ?", (chat_id,))
+
+    # --- group roster (ADR 0027) ---
+
+    def add_group_participant(self, chat_id: int, user_id: int) -> bool:
+        """Add a manager to the chat roster; report whether they were new."""
+        with self._conn:
+            cursor = self._conn.execute(
+                """
+                INSERT OR IGNORE INTO group_participants (chat_id, user_id, joined_at)
+                VALUES (?, ?, ?)
+                """,
+                (chat_id, user_id, datetime.now(UTC).isoformat()),
+            )
+        return cursor.rowcount > 0
+
+    def get_group_participants(self, chat_id: int) -> list[int]:
+        rows = self._conn.execute(
+            "SELECT user_id FROM group_participants WHERE chat_id = ? ORDER BY joined_at",
+            (chat_id,),
+        ).fetchall()
+        return [user_id for (user_id,) in rows]
+
+    def count_group_participants(self, chat_id: int) -> int:
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM group_participants WHERE chat_id = ?",
+            (chat_id,),
+        ).fetchone()
+        return int(row[0])
+
+    def is_roster_closed(self, chat_id: int) -> bool:
+        row = self._conn.execute(
+            "SELECT closed_at FROM group_rosters WHERE chat_id = ?",
+            (chat_id,),
+        ).fetchone()
+        return row is not None and row[0] is not None
+
+    def close_roster(self, chat_id: int) -> None:
+        with self._conn:
+            self._conn.execute(
+                """
+                INSERT INTO group_rosters (chat_id, closed_at) VALUES (?, ?)
+                ON CONFLICT (chat_id) DO UPDATE SET closed_at = excluded.closed_at
+                """,
+                (chat_id, datetime.now(UTC).isoformat()),
+            )
+
+    def reopen_roster(self, chat_id: int) -> None:
+        """Reopen enrollment, dropping the roster and its confirmations (ADR 0027).
+
+        A reset roster must not carry confirmations of managers who are no longer there.
+        """
+        with self._conn:
+            self._conn.execute("DELETE FROM group_participants WHERE chat_id = ?", (chat_id,))
+            self._conn.execute(
+                "DELETE FROM group_lineup_confirmations WHERE chat_id = ?", (chat_id,)
+            )
+            self._conn.execute(
+                """
+                INSERT INTO group_rosters (chat_id, closed_at) VALUES (?, NULL)
+                ON CONFLICT (chat_id) DO UPDATE SET closed_at = NULL
+                """,
+                (chat_id,),
+            )
+
+    # --- group lineup confirmations (ADR 0027) ---
+
+    def is_group_lineup_confirmed(self, chat_id: int, round_: int, user_id: int) -> bool:
+        row = self._conn.execute(
+            """
+            SELECT 1 FROM group_lineup_confirmations
+            WHERE chat_id = ? AND round = ? AND user_id = ?
+            """,
+            (chat_id, round_, user_id),
+        ).fetchone()
+        return row is not None
+
+    def mark_group_lineup_confirmed(self, chat_id: int, round_: int, user_id: int) -> None:
+        with self._conn:
+            self._conn.execute(
+                """
+                INSERT OR IGNORE INTO group_lineup_confirmations (chat_id, round, user_id)
+                VALUES (?, ?, ?)
+                """,
+                (chat_id, round_, user_id),
+            )
+
+    def unmark_group_lineup_confirmed(self, chat_id: int, round_: int, user_id: int) -> bool:
+        """Delete one manager's confirmation if present; report whether one was deleted."""
+        with self._conn:
+            cursor = self._conn.execute(
+                """
+                DELETE FROM group_lineup_confirmations
+                WHERE chat_id = ? AND round = ? AND user_id = ?
+                """,
+                (chat_id, round_, user_id),
+            )
+        return cursor.rowcount > 0
+
+    def count_group_lineup_confirmations(self, chat_id: int, round_: int) -> int:
+        """Count confirmations from managers who are actually on the roster."""
+        row = self._conn.execute(
+            """
+            SELECT COUNT(*) FROM group_lineup_confirmations AS c
+            WHERE c.chat_id = ? AND c.round = ? AND EXISTS (
+                SELECT 1 FROM group_participants AS p
+                WHERE p.chat_id = c.chat_id AND p.user_id = c.user_id
+            )
+            """,
+            (chat_id, round_),
+        ).fetchone()
+        return int(row[0])
+
+    def is_group_lineup_complete(self, chat_id: int, round_: int) -> bool:
+        """Whether every known participant has confirmed. Empty roster is never complete."""
+        total = self.count_group_participants(chat_id)
+        if total == 0:
+            return False
+        return self.count_group_lineup_confirmations(chat_id, round_) >= total

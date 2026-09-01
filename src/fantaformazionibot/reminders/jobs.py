@@ -4,6 +4,7 @@ import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
+from telegram import InlineKeyboardMarkup
 from telegram.constants import ChatType, ParseMode
 from telegram.ext import ContextTypes
 
@@ -107,6 +108,27 @@ def reschedule_reminders(application: BotApp) -> None:
     logger.info("Scheduled %d reminders", scheduled)
 
 
+def _lineup_keyboard(
+    subscription: Subscription | None, round_: int, repository: Repository
+) -> InlineKeyboardMarkup | None:
+    """The "Ho schierato" control for a reminder, per chat type.
+
+    Groups get the per-manager variant with the roster counter (ADR 0027); the channel
+    gets none, as decided in ADR 0021 — it has many subscribers and no meaningful roster.
+    """
+    if subscription is None:
+        return None
+    if subscription.chat_type == ChatType.PRIVATE:
+        return keyboards.build_lineup_confirm_keyboard(round_)
+    if subscription.chat_type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        return keyboards.build_group_lineup_keyboard(
+            round_,
+            repository.count_group_lineup_confirmations(subscription.chat_id, round_),
+            repository.count_group_participants(subscription.chat_id),
+        )
+    return None
+
+
 async def send_reminder_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     job = context.job
     assert job is not None
@@ -129,11 +151,7 @@ async def send_reminder_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     now = datetime.now(UTC)
     deadline = planner.deadline_for(matchday, settings.deadline_margin)
     subscription = repository.get_subscription(reminder.chat_id)
-    reply_markup = (
-        keyboards.build_lineup_confirm_keyboard(reminder.round)
-        if subscription is not None and subscription.chat_type == ChatType.PRIVATE
-        else None
-    )
+    reply_markup = _lineup_keyboard(subscription, reminder.round, repository)
     try:
         await context.bot.send_message(
             chat_id=reminder.chat_id,
