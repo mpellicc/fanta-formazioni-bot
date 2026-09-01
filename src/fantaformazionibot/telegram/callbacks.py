@@ -46,6 +46,7 @@ from fantaformazionibot.telegram.commands import (
     unsubscribe,
     user_may_manage_subscription,
 )
+from fantaformazionibot.telegram.events import log_event
 
 OFFSETS_CUSTOM_INPUT = 1
 
@@ -74,6 +75,13 @@ async def _may_manage(query: CallbackQuery, chat: Chat, context: ContextTypes.DE
     if query.from_user is None or not await user_may_manage_subscription(
         query.from_user.id, chat, context
     ):
+        log_event(
+            "permission_check",
+            chat.id,
+            "denied",
+            reason="not_admin",
+            user_id=query.from_user.id if query.from_user is not None else None,
+        )
         await query.answer(messages.admin_only(), show_alert=True)
         return False
     return True
@@ -263,6 +271,7 @@ async def _set_roster_closed(
     repository: Repository = context.bot_data["repository"]
     if closed:
         repository.close_roster(chat.id)
+        log_event("roster_close", chat.id, "closed")
     else:
         reset_group_roster(chat.id, repository, context.application)
 

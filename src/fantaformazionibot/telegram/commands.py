@@ -13,6 +13,7 @@ from fantaformazionibot.reminders import planner
 from fantaformazionibot.reminders.jobs import reschedule_reminders
 from fantaformazionibot.storage.repository import Repository
 from fantaformazionibot.telegram import keyboards, messages
+from fantaformazionibot.telegram.events import log_event
 
 MAX_OFFSETS = 10
 MIN_OFFSET = timedelta(minutes=1)
@@ -73,6 +74,7 @@ def confirm_lineup(chat_id: int, round_: int, repository: Repository, applicatio
     if not already:
         repository.mark_lineup_confirmed(chat_id, round_)
         reschedule_reminders(application)
+    log_event("lineup_confirm", chat_id, "noop" if already else "confirmed", round=round_)
     return already
 
 
@@ -83,6 +85,7 @@ def undo_lineup_confirmation(
     deleted = repository.unmark_lineup_confirmed(chat_id, round_)
     if deleted:
         reschedule_reminders(application)
+    log_event("lineup_undo", chat_id, "undone" if deleted else "noop", round=round_)
     return deleted
 
 
@@ -104,11 +107,14 @@ def join_roster(chat_id: int, user_id: int, repository: Repository, application:
     silencing flags are dropped: reminders resume until the newcomer confirms too.
     """
     if repository.is_roster_closed(chat_id):
+        log_event("roster_join", chat_id, "closed", user_id=user_id)
         return False
     if not repository.add_group_participant(chat_id, user_id):
+        log_event("roster_join", chat_id, "noop", user_id=user_id)
         return False
     repository.clear_lineup_confirmations(chat_id)
     reschedule_reminders(application)
+    log_event("roster_join", chat_id, "joined", user_id=user_id)
     return True
 
 
@@ -150,6 +156,7 @@ def reset_group_roster(chat_id: int, repository: Repository, application: BotApp
     repository.reopen_roster(chat_id)
     repository.clear_lineup_confirmations(chat_id)
     reschedule_reminders(application)
+    log_event("roster_reset", chat_id, "reopened")
 
 
 def confirm_group_lineup(
@@ -169,6 +176,16 @@ def confirm_group_lineup(
         repository.mark_group_lineup_confirmed(chat_id, round_, user_id)
     result = _group_result(chat_id, round_, repository, already=already)
     _sync_group_silencing(chat_id, round_, repository, application, complete=result.complete)
+    log_event(
+        "group_lineup_confirm",
+        chat_id,
+        "noop" if already else "confirmed",
+        round=round_,
+        user_id=user_id,
+        confirmed=result.confirmed,
+        total=result.total,
+        complete=result.complete,
+    )
     return result
 
 
@@ -179,6 +196,15 @@ def undo_group_lineup_confirmation(
     deleted = repository.unmark_group_lineup_confirmed(chat_id, round_, user_id)
     result = _group_result(chat_id, round_, repository, already=not deleted)
     _sync_group_silencing(chat_id, round_, repository, application, complete=result.complete)
+    log_event(
+        "group_lineup_undo",
+        chat_id,
+        "undone" if deleted else "noop",
+        round=round_,
+        user_id=user_id,
+        confirmed=result.confirmed,
+        total=result.total,
+    )
     return result
 
 
@@ -272,8 +298,14 @@ async def _sender_may_manage_subscription(
     if message.sender_chat is not None and message.sender_chat.id == chat.id:
         return True
     if message.from_user is None:
+        log_event("permission_check", chat.id, "denied", reason="no_sender")
         return False
-    return await user_may_manage_subscription(message.from_user.id, chat, context)
+    allowed = await user_may_manage_subscription(message.from_user.id, chat, context)
+    if not allowed:
+        log_event(
+            "permission_check", chat.id, "denied", reason="not_admin", user_id=message.from_user.id
+        )
+    return allowed
 
 
 def _to_timedeltas(offsets_seconds: tuple[int, ...]) -> tuple[timedelta, ...]:
@@ -329,6 +361,14 @@ def subscribe(
             # Destination only, not scheduling: PlannedReminder carries no thread id and
             # send_reminder_job re-reads the subscription (and its thread) at send time.
             repository.update_subscription_thread(chat.id, message_thread_id)
+        log_event(
+            "subscribe",
+            chat.id,
+            "noop",
+            chat_type=chat.type,
+            topic_changed=topic_changed,
+            thread_id=message_thread_id,
+        )
         return SubscribeResult(True, _to_timedeltas(existing.reminder_offsets), topic_changed)
 
     repository.upsert_subscription(
@@ -343,6 +383,7 @@ def subscribe(
         )
     )
     reschedule_reminders(application)
+    log_event("subscribe", chat.id, "created", chat_type=chat.type, thread_id=message_thread_id)
     return SubscribeResult(False, settings.reminder_offsets, message_thread_id is not None)
 
 
@@ -351,6 +392,7 @@ def unsubscribe(chat: Chat, repository: Repository, application: BotApp) -> bool
     deleted = repository.delete_user_subscription(chat.id)
     if deleted:
         reschedule_reminders(application)
+    log_event("unsubscribe", chat.id, "deleted" if deleted else "noop", chat_type=chat.type)
     return deleted
 
 
@@ -393,6 +435,15 @@ def set_offsets(
             )
         )
     reschedule_reminders(application)
+    log_event(
+        "set_offsets",
+        chat.id,
+        "created" if existing is None else "updated",
+        chat_type=chat.type,
+        offsets=",".join(str(seconds) for seconds in offsets_seconds),
+        topic_changed=topic_changed,
+        thread_id=message_thread_id,
+    )
     return SetOffsetsResult(newly_subscribed=existing is None, topic_changed=topic_changed)
 
 
