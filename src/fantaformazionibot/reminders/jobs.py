@@ -16,6 +16,7 @@ from fantaformazionibot.reminders import planner
 from fantaformazionibot.storage.repository import Repository
 from fantaformazionibot.telegram import keyboards, messages
 from fantaformazionibot.telegram.errors import is_dead_chat_error
+from fantaformazionibot.telegram.events import log_event, record_process_event
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +38,11 @@ async def refresh_calendar(application: BotApp) -> None:
     except Exception:
         # Keep whatever is already in the DB; reminders reschedule from it below.
         logger.exception("Calendar fetch failed, keeping existing matchdays")
+        record_process_event(repository, "calendar_refresh", "failed")
     else:
         repository.upsert_matchdays(matchdays)
         logger.info("Calendar refreshed: %d matchdays", len(matchdays))
+        record_process_event(repository, "calendar_refresh", "ok", matchdays=len(matchdays))
 
     await _alert_if_stale(application, repository.get_matchdays())
     reschedule_reminders(application)
@@ -52,6 +55,7 @@ async def _alert_if_stale(application: BotApp, matchdays: Sequence[Matchday]) ->
     condition holds, since this only reaches a private debug chat once a day.
     """
     settings: Settings = application.bot_data["settings"]
+    repository: Repository = application.bot_data["repository"]
     stale = planner.stale_matchday(
         matchdays, settings.deadline_margin, datetime.now(UTC), STALE_KICKOFF_THRESHOLD
     )
@@ -59,6 +63,7 @@ async def _alert_if_stale(application: BotApp, matchdays: Sequence[Matchday]) ->
         return
 
     logger.warning("Matchday %d still has a placeholder kickoff close to its deadline", stale.round)
+    record_process_event(repository, "calendar_stale", "detected", round=stale.round)
     try:
         await application.bot.send_message(
             chat_id=settings.debug_chat_id,
@@ -167,17 +172,33 @@ async def send_reminder_job(context: ContextTypes.DEFAULT_TYPE) -> None:
             message_thread_id=subscription.message_thread_id if subscription else None,
         )
     except Exception as exc:
-        if not is_dead_chat_error(exc):
+        # Recorded before the raise: an unhandled error still leaves a trace of the
+        # delivery that did not happen, which is what a delivery rate needs (ADR 0029).
+        dead = is_dead_chat_error(exc)
+        log_event(
+            "reminder_send",
+            reminder.chat_id,
+            "failed",
+            repository=repository,
+            chat_type=subscription.chat_type if subscription else None,
+            round=reminder.round,
+            offset_seconds=reminder.offset_seconds,
+            error_kind="dead_chat" if dead else "other",
+        )
+        if not dead:
             raise
         await _prune_dead_chat(context, reminder.chat_id, subscription)
         return
 
     repository.mark_reminder_sent(reminder.chat_id, reminder.round, reminder.offset_seconds)
-    logger.info(
-        "Reminder sent to %d for round %d (offset %ds)",
+    log_event(
+        "reminder_send",
         reminder.chat_id,
-        reminder.round,
-        reminder.offset_seconds,
+        "sent",
+        repository=repository,
+        chat_type=subscription.chat_type if subscription else None,
+        round=reminder.round,
+        offset_seconds=reminder.offset_seconds,
     )
 
 
