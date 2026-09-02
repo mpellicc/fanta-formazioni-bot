@@ -22,6 +22,7 @@ from fantaformazionibot.telegram.commands import (
     unsubscribe_command,
 )
 from fantaformazionibot.telegram.errors import error_handler
+from fantaformazionibot.telegram.events import record_process_event
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,7 @@ async def _post_init(application: BotApp) -> None:
         )
     )
     repository.prune_channel_subscriptions(settings.channel_chat_id)
+    record_process_event(repository, "startup", "ok")
     await refresh_calendar(application)
 
 

@@ -88,7 +88,7 @@ Each reminder job carries `(chat_id, round, offset_seconds)`. On fire it:
 2. re-checks `lineup_confirmations` (skip if the chat already confirmed this round's lineup, ADR 0021);
 3. sends the reminder message with the deadline time and remaining duration —
    private chats also get a "✅ Ho schierato" button;
-4. records the reminder in `sent_reminders`.
+4. records the reminder in `sent_reminders` (dedupe) and appends a `reminder_send` row to `bot_events` — `sent`, or `failed` with the error kind, which is where the delivery rate comes from (ADR 0029).
 
 Reminders whose time is already in the past at scheduling time are skipped, never sent late.
 
@@ -146,13 +146,20 @@ group_rosters         (chat_id INTEGER PRIMARY KEY, closed_at TEXT)             
 group_lineup_confirmations (chat_id INTEGER, round INTEGER, user_id INTEGER,
                        UNIQUE(chat_id, round, user_id))                              -- ADR 0027
 subscription_events   (id INTEGER PK, chat_id, chat_type, origin, event, occurred_at) -- ADR 0024
+bot_events            (id INTEGER PK, occurred_at TEXT NOT NULL,                     -- ISO 8601 UTC
+                       action TEXT NOT NULL, outcome TEXT NOT NULL,
+                       chat_id INTEGER,                                              -- NULL for process events
+                       chat_type TEXT, user_id INTEGER, round INTEGER,
+                       detail TEXT)                                                  -- JSON of the remaining fields (ADR 0029)
 ```
 
 `subscription_events` is the append-only lifecycle log read by *osservatorio-hq* (ADR 0024): `subscribed` on a real insert, `unsubscribed` on `/promemoria_off` (still a user, just not active), `dead_chat` on the pruning of ADR 0023 (unreachable). The bot never reads it; each row is written in the same transaction as the `subscriptions` change it describes.
 
+`bot_events` is the append-only "what happened, and when" log read by *osservatorio-hq* (ADR 0029). One row = one fact that actually happened, with its instant and its outcome — never an intention, never a poll, never a read. It is written from the same single emission point as the log lines of ADR 0028 (`telegram/events.py`), so the two sinks cannot disagree; `chat_type`, `user_id` and `round` are promoted to columns because they are the axes the dashboard aggregates on, everything else rides in `detail` as JSON. Actions in use: `subscribe`, `unsubscribe`, `set_offsets`, `lineup_confirm`, `lineup_undo`, `group_lineup_confirm`, `group_lineup_undo`, `roster_join`, `roster_close`, `roster_reset`, `permission_check`, `reminder_send`, `calendar_refresh`, `calendar_stale`, `startup`. **Adding an action is safe; renaming or repurposing one is breaking for the dashboard.** Read-only commands are deliberately not recorded (ADR 0028 §1). The bot never reads the table.
+
 In forum-mode supergroups, running `/promemoria_on` or `/personalizza_orari` (command or button) inside a topic binds that chat's reminders to that topic (`message_thread_id`); running it again from a different topic moves the binding (ADR 0025). Outside forums, and in "General", `message_thread_id` stays `NULL` and delivery is unchanged.
 
-`matchdays` fully regenerates from the calendar feed. `sent_reminders`, `lineup_confirmations` and the three `group_*` tables are disposable (worst case after deletion: a duplicate reminder, a round's reminders un-silencing, or a group roster to rebuild). `subscriptions` is **not** regenerable: it holds every user/group's `/promemoria_on` state and (since ADR 0013) custom `reminder_offsets` — back it up before anything destructive.
+`matchdays` fully regenerates from the calendar feed. `sent_reminders`, `lineup_confirmations` and the three `group_*` tables are disposable (worst case after deletion: a duplicate reminder, a round's reminders un-silencing, or a group roster to rebuild). `subscriptions` is **not** regenerable: it holds every user/group's `/promemoria_on` state and (since ADR 0013) custom `reminder_offsets` — back it up before anything destructive. Neither are `subscription_events` and `bot_events`: they are history, so nothing can rebuild them and no backfill is allowed to invent one (ADR 0022).
 
 ## Datetime policy
 

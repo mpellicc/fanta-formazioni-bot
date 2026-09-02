@@ -32,6 +32,7 @@ from fantaformazionibot.telegram import keyboards, messages
 from fantaformazionibot.telegram.commands import (
     OFFSETS_ERROR_MESSAGES,
     OffsetsParseError,
+    bot_repository,
     confirm_group_lineup,
     confirm_lineup,
     join_roster,
@@ -79,6 +80,7 @@ async def _may_manage(query: CallbackQuery, chat: Chat, context: ContextTypes.DE
             "permission_check",
             chat.id,
             "denied",
+            repository=bot_repository(context),
             reason="not_admin",
             user_id=query.from_user.id if query.from_user is not None else None,
         )
@@ -271,7 +273,7 @@ async def _set_roster_closed(
     repository: Repository = context.bot_data["repository"]
     if closed:
         repository.close_roster(chat.id)
-        log_event("roster_close", chat.id, "closed")
+        log_event("roster_close", chat.id, "closed", repository=repository)
     else:
         reset_group_roster(chat.id, repository, context.application)
 
