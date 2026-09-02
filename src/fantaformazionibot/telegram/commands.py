@@ -20,6 +20,12 @@ MIN_OFFSET = timedelta(minutes=1)
 MAX_OFFSET = timedelta(days=7)
 
 
+def bot_repository(context: ContextTypes.DEFAULT_TYPE) -> Repository:
+    """The repository, for the permission gates that need it only to record an event."""
+    repository: Repository = context.bot_data["repository"]
+    return repository
+
+
 class OffsetsParseError(ValueError):
     """Raised by parse_offsets_args; reason is mapped to Italian text in messages.py."""
 
@@ -74,7 +80,13 @@ def confirm_lineup(chat_id: int, round_: int, repository: Repository, applicatio
     if not already:
         repository.mark_lineup_confirmed(chat_id, round_)
         reschedule_reminders(application)
-    log_event("lineup_confirm", chat_id, "noop" if already else "confirmed", round=round_)
+    log_event(
+        "lineup_confirm",
+        chat_id,
+        "noop" if already else "confirmed",
+        repository=repository,
+        round=round_,
+    )
     return already
 
 
@@ -85,7 +97,13 @@ def undo_lineup_confirmation(
     deleted = repository.unmark_lineup_confirmed(chat_id, round_)
     if deleted:
         reschedule_reminders(application)
-    log_event("lineup_undo", chat_id, "undone" if deleted else "noop", round=round_)
+    log_event(
+        "lineup_undo",
+        chat_id,
+        "undone" if deleted else "noop",
+        repository=repository,
+        round=round_,
+    )
     return deleted
 
 
@@ -107,14 +125,14 @@ def join_roster(chat_id: int, user_id: int, repository: Repository, application:
     silencing flags are dropped: reminders resume until the newcomer confirms too.
     """
     if repository.is_roster_closed(chat_id):
-        log_event("roster_join", chat_id, "closed", user_id=user_id)
+        log_event("roster_join", chat_id, "closed", repository=repository, user_id=user_id)
         return False
     if not repository.add_group_participant(chat_id, user_id):
-        log_event("roster_join", chat_id, "noop", user_id=user_id)
+        log_event("roster_join", chat_id, "noop", repository=repository, user_id=user_id)
         return False
     repository.clear_lineup_confirmations(chat_id)
     reschedule_reminders(application)
-    log_event("roster_join", chat_id, "joined", user_id=user_id)
+    log_event("roster_join", chat_id, "joined", repository=repository, user_id=user_id)
     return True
 
 
@@ -156,7 +174,7 @@ def reset_group_roster(chat_id: int, repository: Repository, application: BotApp
     repository.reopen_roster(chat_id)
     repository.clear_lineup_confirmations(chat_id)
     reschedule_reminders(application)
-    log_event("roster_reset", chat_id, "reopened")
+    log_event("roster_reset", chat_id, "reopened", repository=repository)
 
 
 def confirm_group_lineup(
@@ -180,6 +198,7 @@ def confirm_group_lineup(
         "group_lineup_confirm",
         chat_id,
         "noop" if already else "confirmed",
+        repository=repository,
         round=round_,
         user_id=user_id,
         confirmed=result.confirmed,
@@ -200,6 +219,7 @@ def undo_group_lineup_confirmation(
         "group_lineup_undo",
         chat_id,
         "undone" if deleted else "noop",
+        repository=repository,
         round=round_,
         user_id=user_id,
         confirmed=result.confirmed,
@@ -298,12 +318,23 @@ async def _sender_may_manage_subscription(
     if message.sender_chat is not None and message.sender_chat.id == chat.id:
         return True
     if message.from_user is None:
-        log_event("permission_check", chat.id, "denied", reason="no_sender")
+        log_event(
+            "permission_check",
+            chat.id,
+            "denied",
+            repository=bot_repository(context),
+            reason="no_sender",
+        )
         return False
     allowed = await user_may_manage_subscription(message.from_user.id, chat, context)
     if not allowed:
         log_event(
-            "permission_check", chat.id, "denied", reason="not_admin", user_id=message.from_user.id
+            "permission_check",
+            chat.id,
+            "denied",
+            repository=bot_repository(context),
+            reason="not_admin",
+            user_id=message.from_user.id,
         )
     return allowed
 
@@ -365,6 +396,7 @@ def subscribe(
             "subscribe",
             chat.id,
             "noop",
+            repository=repository,
             chat_type=chat.type,
             topic_changed=topic_changed,
             thread_id=message_thread_id,
@@ -383,7 +415,14 @@ def subscribe(
         )
     )
     reschedule_reminders(application)
-    log_event("subscribe", chat.id, "created", chat_type=chat.type, thread_id=message_thread_id)
+    log_event(
+        "subscribe",
+        chat.id,
+        "created",
+        repository=repository,
+        chat_type=chat.type,
+        thread_id=message_thread_id,
+    )
     return SubscribeResult(False, settings.reminder_offsets, message_thread_id is not None)
 
 
@@ -392,7 +431,13 @@ def unsubscribe(chat: Chat, repository: Repository, application: BotApp) -> bool
     deleted = repository.delete_user_subscription(chat.id)
     if deleted:
         reschedule_reminders(application)
-    log_event("unsubscribe", chat.id, "deleted" if deleted else "noop", chat_type=chat.type)
+    log_event(
+        "unsubscribe",
+        chat.id,
+        "deleted" if deleted else "noop",
+        repository=repository,
+        chat_type=chat.type,
+    )
     return deleted
 
 
@@ -439,6 +484,7 @@ def set_offsets(
         "set_offsets",
         chat.id,
         "created" if existing is None else "updated",
+        repository=repository,
         chat_type=chat.type,
         offsets=",".join(str(seconds) for seconds in offsets_seconds),
         topic_changed=topic_changed,

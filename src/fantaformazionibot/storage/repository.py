@@ -1,6 +1,6 @@
 import json
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -122,6 +122,30 @@ class Repository:
                 )
                 """
             )
+            # Append-only log of what happened and when (ADR 0029). The state tables
+            # above are point-in-time and some of them get cleared (reopen_roster),
+            # so every time-based metric has to come from here instead.
+            self._conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS bot_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    occurred_at TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    outcome TEXT NOT NULL,
+                    chat_id INTEGER,
+                    chat_type TEXT,
+                    user_id INTEGER,
+                    round INTEGER,
+                    detail TEXT
+                )
+                """
+            )
+            for name, columns_sql in (
+                ("bot_events_time_idx", "(occurred_at)"),
+                ("bot_events_action_idx", "(action, occurred_at)"),
+                ("bot_events_chat_idx", "(chat_id, occurred_at)"),
+            ):
+                self._conn.execute(f"CREATE INDEX IF NOT EXISTS {name} ON bot_events {columns_sql}")
 
     # --- matchdays ---
 
@@ -457,3 +481,38 @@ class Repository:
         if total == 0:
             return False
         return self.count_group_lineup_confirmations(chat_id, round_) >= total
+
+    # --- events (ADR 0029) ---
+
+    # Promoted to columns because they are the axes the dashboard aggregates on;
+    # everything else rides along in `detail` as JSON.
+    _EVENT_COLUMNS = ("chat_type", "user_id", "round")
+
+    def record_event(
+        self,
+        action: str,
+        chat_id: int | None,
+        outcome: str,
+        fields: Mapping[str, object] | None = None,
+    ) -> None:
+        """Append one fact, with its instant and its outcome. Never an intention."""
+        extra = dict(fields or {})
+        promoted = {name: extra.pop(name, None) for name in self._EVENT_COLUMNS}
+        with self._conn:
+            self._conn.execute(
+                """
+                INSERT INTO bot_events
+                    (occurred_at, action, outcome, chat_id, chat_type, user_id, round, detail)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    datetime.now(UTC).isoformat(),
+                    action,
+                    outcome,
+                    chat_id,
+                    promoted["chat_type"],
+                    promoted["user_id"],
+                    promoted["round"],
+                    json.dumps(extra, default=str) if extra else None,
+                ),
+            )

@@ -460,3 +460,112 @@ def test_clear_lineup_confirmations_only_touches_that_chat(tmp_path: Path) -> No
 
     assert repository.is_lineup_confirmed(-100, 7) is False
     assert repository.is_lineup_confirmed(-200, 7) is True
+
+
+# --- bot_events (ADR 0029) ---
+
+
+def _bot_events(
+    tmp_path: Path,
+) -> list[tuple[str, str, int | None, str | None, int | None, int | None, str | None]]:
+    conn = sqlite3.connect(tmp_path / "test.db")
+    try:
+        return list(
+            conn.execute(
+                "SELECT action, outcome, chat_id, chat_type, user_id, round, detail"
+                " FROM bot_events ORDER BY id"
+            )
+        )
+    finally:
+        conn.close()
+
+
+def test_record_event_promotes_the_aggregation_axes_to_columns(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+
+    repository.record_event(
+        "reminder_send",
+        42,
+        "sent",
+        {"chat_type": "private", "user_id": 7, "round": 3, "offset_seconds": 3600},
+    )
+
+    assert _bot_events(tmp_path) == [
+        ("reminder_send", "sent", 42, "private", 7, 3, '{"offset_seconds": 3600}')
+    ]
+
+
+def test_record_event_without_extra_fields_leaves_detail_null(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+
+    repository.record_event("unsubscribe", 42, "deleted", {"chat_type": "private"})
+
+    assert _bot_events(tmp_path) == [("unsubscribe", "deleted", 42, "private", None, None, None)]
+
+
+def test_record_event_accepts_a_process_event_without_a_chat(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+
+    repository.record_event("startup", None, "ok")
+
+    assert _bot_events(tmp_path) == [("startup", "ok", None, None, None, None, None)]
+
+
+def test_recorded_events_are_appended_never_replaced(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+
+    repository.record_event("lineup_confirm", 42, "confirmed", {"round": 3})
+    repository.record_event("lineup_undo", 42, "undone", {"round": 3})
+    repository.record_event("lineup_confirm", 42, "confirmed", {"round": 3})
+
+    assert [(action, outcome) for action, outcome, *_ in _bot_events(tmp_path)] == [
+        ("lineup_confirm", "confirmed"),
+        ("lineup_undo", "undone"),
+        ("lineup_confirm", "confirmed"),
+    ]
+
+
+def test_event_occurred_at_is_tz_aware_utc_iso(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    repository.record_event("startup", None, "ok")
+
+    conn = sqlite3.connect(tmp_path / "test.db")
+    try:
+        (occurred_at,) = conn.execute("SELECT occurred_at FROM bot_events").fetchone()
+    finally:
+        conn.close()
+
+    parsed = datetime.fromisoformat(occurred_at)
+    assert parsed.tzinfo is not None
+    assert parsed.utcoffset() is not None and parsed.utcoffset().total_seconds() == 0
+
+
+def test_bot_events_is_created_on_a_preexisting_database(tmp_path: Path) -> None:
+    """A DB from before ADR 0029 keeps working: the table is created empty, its rows
+    untouched, and no backfill is invented (ADR 0022)."""
+    db_path = tmp_path / "test.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        """
+        CREATE TABLE subscriptions (
+            chat_id INTEGER PRIMARY KEY,
+            chat_type TEXT NOT NULL,
+            reminder_offsets TEXT NOT NULL,
+            origin TEXT NOT NULL DEFAULT 'env',
+            created_at TEXT
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO subscriptions (chat_id, chat_type, reminder_offsets, origin, created_at)"
+        " VALUES (-100, 'channel', '[86400]', 'env', NULL)"
+    )
+    conn.commit()
+    conn.close()
+
+    repository = Repository(db_path)
+
+    assert _bot_events(tmp_path) == []
+    assert repository.get_subscription(-100) is not None
+    repository.record_event("startup", None, "ok")
+    assert len(_bot_events(tmp_path)) == 1
