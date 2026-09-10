@@ -8,7 +8,7 @@ from fantaformazionibot.config import TIMEZONE, Settings
 from fantaformazionibot.models import Subscription
 from fantaformazionibot.reminders.jobs import refresh_calendar, refresh_calendar_job
 from fantaformazionibot.storage.repository import Repository
-from fantaformazionibot.telegram import callbacks, inline
+from fantaformazionibot.telegram import callbacks, chatmember, inline
 from fantaformazionibot.telegram.commands import (
     help_command,
     lineup_confirmed_command,
@@ -86,6 +86,7 @@ def run() -> None:
     application.add_handler(CommandHandler("iscrizioni", roster_command, filters=gate))
     callbacks.register(application)
     inline.register(application)
+    chatmember.register(application)
     application.add_handler(MessageHandler(unknown_filter, unknown_command))
     application.add_error_handler(error_handler)
 

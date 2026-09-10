@@ -223,3 +223,25 @@ def test_topic_callback_data_carries_no_payload() -> None:
     (ADR 0031): a stale keyboard can only ever act on the topic it is visible in."""
     assert keyboards.CB_TOPIC_BIND == "sub:topic:on"
     assert keyboards.CB_TOPIC_UNBIND == "sub:topic:off"
+
+
+def test_build_start_keyboard_private_adds_the_share_button_under_the_toggle() -> None:
+    markup = keyboards.build_start_keyboard(subscribed=False, bot_username="fantabot")
+    (toggle,), (share,) = markup.inline_keyboard
+    assert toggle.callback_data == keyboards.CB_SUBSCRIBE
+    assert share.url == "https://t.me/fantabot?startgroup=true"
+    assert share.callback_data is None
+
+
+def test_build_start_keyboard_keeps_the_toggle_state() -> None:
+    markup = keyboards.build_start_keyboard(subscribed=True, bot_username="fantabot")
+    assert markup.inline_keyboard[0][0].callback_data == keyboards.CB_UNSUBSCRIBE
+
+
+def test_build_start_keyboard_without_username_is_the_plain_toggle() -> None:
+    """In a group the bot is already in, there is nothing to add it to."""
+    markup = keyboards.build_start_keyboard(subscribed=False, bot_username=None)
+    assert (
+        markup.inline_keyboard
+        == keyboards.build_subscription_keyboard(subscribed=False).inline_keyboard
+    )

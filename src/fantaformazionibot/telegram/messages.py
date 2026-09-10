@@ -33,6 +33,19 @@ def start(reminder_offsets: Sequence[timedelta]) -> str:
     )
 
 
+def group_welcome(reminder_offsets: Sequence[timedelta]) -> str:
+    """Sent once when the bot is added to a group (ADR 0032). Names the button below
+    it rather than a legacy command (ADR 0018 Amendment §1)."""
+    offsets = fmt.join_list([fmt.format_duration(offset) for offset in reminder_offsets])
+    return (
+        "Ciao, mister! Sono <b>Fanta Formazioni Bot</b> ⚽\n\n"
+        "Tengo d'occhio le scadenze di ogni giornata di Serie A e avviso qui in gruppo, "
+        f"<b>{offsets}</b> prima che si chiuda.\n\n"
+        f"Un amministratore pu\u00f2 accendermi col bottone <b>{keyboards.ACTION_SUBSCRIBE}</b> "
+        "qui sotto. Con /help vedi tutto il resto."
+    )
+
+
 def help_() -> str:
     return (
         "Ecco cosa posso fare:\n"
