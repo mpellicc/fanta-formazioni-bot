@@ -60,6 +60,22 @@ def help_() -> str:
     )
 
 
+INLINE_DEADLINE_TITLE = "Prossima scadenza"
+INLINE_INVITE_TITLE = "Invita Fanta Formazioni Bot"
+INLINE_INVITE_DESCRIPTION = "Condividi il bot: promemoria prima di ogni scadenza"
+
+
+def inline_invite(bot_username: str) -> str:
+    """Body of the inline "invite" card (ADR 0033 §1): the one that turns a share
+    into an adoption. bot_username comes from context.bot, never from config."""
+    return (
+        "⚽ <b>Fanta Formazioni Bot</b>\n\n"
+        "Ti avvisa prima di ogni scadenza di Serie A, così non schieri "
+        "mezza squadra in panchina.\n"
+        f"https://t.me/{bot_username}"
+    )
+
+
 def next_deadline(round_: int, deadline: datetime, now: datetime) -> str:
     return (
         f"📅 <b>Giornata {round_}</b>\n"

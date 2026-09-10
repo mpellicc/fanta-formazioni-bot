@@ -159,6 +159,8 @@ bot_events            (id INTEGER PK, occurred_at TEXT NOT NULL,                
 
 In forum-mode supergroups, running `/promemoria_on` or `/personalizza_orari` (command or button) inside a topic binds that chat's reminders to that topic (`message_thread_id`); running it again from a different topic moves the binding (ADR 0025). Outside forums, and in "General", `message_thread_id` stays `NULL` and delivery is unchanged. Since ADR 0031 the binding is also reachable from the keyboard: in a forum, `/promemoria` renders a second button — "Manda in questo topic" when the current topic differs from the bound one, "Riporta in chat principale" when it is already bound — behind the same admin gate as the on/off toggle, and states the current destination in its text. Neither path reschedules anything: `send_reminder_job` re-reads the subscription at send time.
 
+Inline mode (ADR 0033): `@bot` in any chat answers with two cards — the next deadline first (what pressing enter sends), the invite second. It is a pure read: no subscription, no scheduling, and the query text is deliberately ignored. `telegram/inline.py` gates on `allowed_user_ids`, answers with `cache_time=30` so the countdown cannot go stale, and records one `inline_share` row per *chosen* result (never per typed query — that would be traffic, ADR 0028 §1). That last update only arrives if BotFather's `/setinlinefeedback` is enabled.
+
 `matchdays` fully regenerates from the calendar feed. `sent_reminders`, `lineup_confirmations` and the three `group_*` tables are disposable (worst case after deletion: a duplicate reminder, a round's reminders un-silencing, or a group roster to rebuild). `subscriptions` is **not** regenerable: it holds every user/group's `/promemoria_on` state and (since ADR 0013) custom `reminder_offsets` — back it up before anything destructive. Neither are `subscription_events` and `bot_events`: they are history, so nothing can rebuild them and no backfill is allowed to invent one (ADR 0022).
 
 ## Datetime policy
@@ -189,5 +191,6 @@ Telegram messages use **HTML parse mode** (not MarkdownV2): static texts need no
 | `REMINDER_OFFSETS` | no | `24h,1h,5m` | Reminder times before the deadline |
 | `URGENT_REMINDER_THRESHOLD` | no | `10m` | Reminders at or under this offset use the fixed "last-call" template instead of the rotating pool (ADR 0018 §9) |
 | `ALLOWED_CHAT_IDS` | no | empty (open) | If non-empty, commands are answered only in these chats (dev bot whitelist) |
+| `ALLOWED_USER_IDS` | no | empty (open) | If non-empty, inline queries are answered only for these users. Inline updates carry no chat, so `ALLOWED_CHAT_IDS` cannot gate them (ADR 0033) |
 
 Durations accept `Nm`, `Nh`, `Ng` (e.g. `24h`, `90m`, `2g`); `Ns` is still parsed but no longer shown in user-facing text (ADR 0015).

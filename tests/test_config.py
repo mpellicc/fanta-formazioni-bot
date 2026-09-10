@@ -65,3 +65,12 @@ def test_settings_defaults() -> None:
     )
     assert settings.calendar_provider == "fixturedownload"
     assert "{season_year}" in settings.calendar_url
+
+
+def test_allowed_user_ids_parses_a_comma_separated_list() -> None:
+    assert _settings(allowed_user_ids="7, 9").allowed_user_ids == (7, 9)
+
+
+def test_allowed_user_ids_defaults_to_empty_meaning_open() -> None:
+    """Empty is what production wants: the inline mode is open to everyone there."""
+    assert _settings().allowed_user_ids == ()
