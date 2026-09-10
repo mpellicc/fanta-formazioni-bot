@@ -23,7 +23,7 @@ def _rows(tmp_path: Path) -> list[tuple[str, str, int | None, str | None, str | 
 
 
 def test_log_event_without_a_repository_only_logs(
-    tmp_path: Path, caplog: "logging.LogCaptureFixture"
+    tmp_path: Path, caplog: logging.LogCaptureFixture
 ) -> None:
     repository = Repository(tmp_path / "test.db")
 
@@ -36,7 +36,7 @@ def test_log_event_without_a_repository_only_logs(
 
 
 def test_log_event_with_a_repository_logs_and_records(
-    tmp_path: Path, caplog: "logging.LogCaptureFixture"
+    tmp_path: Path, caplog: logging.LogCaptureFixture
 ) -> None:
     repository = Repository(tmp_path / "test.db")
 
@@ -56,7 +56,7 @@ def test_none_valued_fields_reach_neither_sink(tmp_path: Path) -> None:
 
 
 def test_a_failing_record_does_not_break_the_caller(
-    tmp_path: Path, caplog: "logging.LogCaptureFixture"
+    tmp_path: Path, caplog: logging.LogCaptureFixture
 ) -> None:
     """Metrics are secondary to the function they measure (ADR 0029)."""
     repository = MagicMock()
@@ -70,7 +70,7 @@ def test_a_failing_record_does_not_break_the_caller(
 
 
 def test_process_events_have_no_chat_and_no_log_line(
-    tmp_path: Path, caplog: "logging.LogCaptureFixture"
+    tmp_path: Path, caplog: logging.LogCaptureFixture
 ) -> None:
     repository = Repository(tmp_path / "test.db")
 

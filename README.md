@@ -27,7 +27,7 @@ In groups, `/promemoria_on`, `/promemoria_off`, and `/personalizza_orari` are re
 
 ## Development
 
-Requires [uv](https://docs.astral.sh/uv/) (Python 3.13 is provisioned automatically).
+Requires [uv](https://docs.astral.sh/uv/) (Python 3.14 is provisioned automatically).
 
 ```bash
 git clone https://github.com/mpellicc/fanta-formazioni-bot.git

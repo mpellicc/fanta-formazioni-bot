@@ -219,7 +219,7 @@ def lineup_not_confirmed() -> str:
     return "Non risultava nessuna conferma da annullare, mister."
 
 
-def group_lineup_confirmed(round_: int, result: "GroupConfirmResult") -> str:
+def group_lineup_confirmed(round_: int, result: GroupConfirmResult) -> str:
     """Feedback after one manager confirms in a group (ADR 0027)."""
     head = (
         f"Avevi già segnato la <b>Giornata {round_}</b>, mister"
@@ -251,14 +251,14 @@ def group_lineup_confirmed(round_: int, result: "GroupConfirmResult") -> str:
     return f"{head}.{count}\nI promemoria si fermano quando hanno schierato tutti."
 
 
-def group_lineup_cancelled(round_: int, result: "GroupConfirmResult") -> str:
+def group_lineup_cancelled(round_: int, result: GroupConfirmResult) -> str:
     return (
         f"↩️ Annullato: non risulti più schierato per la <b>Giornata {round_}</b>.\n"
         f"Siamo a <b>{result.confirmed}/{result.total}</b>, i promemoria del gruppo proseguono."
     )
 
 
-def group_lineup_confirmed_toast(result: "GroupConfirmResult") -> str:
+def group_lineup_confirmed_toast(result: GroupConfirmResult) -> str:
     """Short toast on the button press; the message keyboard carries the counter."""
     if result.complete:
         return f"Hanno schierato tutti ({result.confirmed}/{result.total}): promemoria fermi."
@@ -267,7 +267,7 @@ def group_lineup_confirmed_toast(result: "GroupConfirmResult") -> str:
     return f"Segnato. Siamo a {result.confirmed}/{result.total}."
 
 
-def group_lineup_cancelled_toast(result: "GroupConfirmResult") -> str:
+def group_lineup_cancelled_toast(result: GroupConfirmResult) -> str:
     return f"Conferma annullata. Siamo a {result.confirmed}/{result.total}."
 
 
