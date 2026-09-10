@@ -71,6 +71,7 @@ jobs:
           CHANNEL_CHAT_ID: ${{ vars.CHANNEL_CHAT_ID }}
           DEBUG_CHAT_ID: ${{ vars.DEBUG_CHAT_ID }}
           ALLOWED_CHAT_IDS: ${{ vars.ALLOWED_CHAT_IDS }}
+          ALLOWED_USER_IDS: ${{ vars.ALLOWED_USER_IDS }}
           CALENDAR_PROVIDER: ${{ vars.CALENDAR_PROVIDER }}
           FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
           MOCK_KICKOFF_OFFSET: ${{ vars.MOCK_KICKOFF_OFFSET }}
@@ -78,13 +79,13 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          envs: BOT_TOKEN,CHANNEL_CHAT_ID,DEBUG_CHAT_ID,ALLOWED_CHAT_IDS,CALENDAR_PROVIDER,FOOTBALL_DATA_API_KEY,MOCK_KICKOFF_OFFSET,APP_DIR,IMAGE_TAG
+          envs: BOT_TOKEN,CHANNEL_CHAT_ID,DEBUG_CHAT_ID,ALLOWED_CHAT_IDS,ALLOWED_USER_IDS,CALENDAR_PROVIDER,FOOTBALL_DATA_API_KEY,MOCK_KICKOFF_OFFSET,APP_DIR,IMAGE_TAG
           script: |
             set -e
             cd ~/"$APP_DIR"
             umask 177
-            printf 'TOKEN=%s\nCHANNEL_CHAT_ID=%s\nDEBUG_CHAT_ID=%s\nALLOWED_CHAT_IDS=%s\nCALENDAR_PROVIDER=%s\nFOOTBALL_DATA_API_KEY=%s\nMOCK_KICKOFF_OFFSET=%s\nIMAGE_TAG=%s\n' \
-              "$BOT_TOKEN" "$CHANNEL_CHAT_ID" "$DEBUG_CHAT_ID" "$ALLOWED_CHAT_IDS" \
+            printf 'TOKEN=%s\nCHANNEL_CHAT_ID=%s\nDEBUG_CHAT_ID=%s\nALLOWED_CHAT_IDS=%s\nALLOWED_USER_IDS=%s\nCALENDAR_PROVIDER=%s\nFOOTBALL_DATA_API_KEY=%s\nMOCK_KICKOFF_OFFSET=%s\nIMAGE_TAG=%s\n' \
+              "$BOT_TOKEN" "$CHANNEL_CHAT_ID" "$DEBUG_CHAT_ID" "$ALLOWED_CHAT_IDS" "$ALLOWED_USER_IDS" \
               "${CALENDAR_PROVIDER:-fixturedownload}" "$FOOTBALL_DATA_API_KEY" \
               "${MOCK_KICKOFF_OFFSET:-10m}" "$IMAGE_TAG" > .env
             docker compose pull
