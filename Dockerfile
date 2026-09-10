@@ -5,7 +5,7 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
-FROM python:3.13-slim-bookworm
+FROM python:3.14-slim-bookworm
 WORKDIR /app
 RUN useradd --create-home appuser \
     && mkdir /data \
