@@ -35,6 +35,22 @@ jobs:
             TAGS="$TAGS,$REPO:dev"
           fi
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
+      # Builds amd64 only, loads it into the local daemon and runs it: the
+      # multi-arch push below never executes the image, so a container that
+      # cannot start (e.g. a builder/runtime Python mismatch) would otherwise
+      # reach the VM and fail at `docker compose up` (ADR 0034).
+      - name: Build image for smoke test
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: smoke-test:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test the image
+        run: docker run --rm --entrypoint python smoke-test:${{ github.sha }} -c 'import fantaformazionibot.app'
+
       - uses: docker/build-push-action@v7
         with:
           context: .
