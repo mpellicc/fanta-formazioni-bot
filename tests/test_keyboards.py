@@ -154,3 +154,72 @@ def test_build_roster_keyboard_closed_offers_only_reopen() -> None:
     markup = keyboards.build_roster_keyboard(closed=True)
     data = [button.callback_data for row in markup.inline_keyboard for button in row]
     assert data == [keyboards.CB_ROSTER_REOPEN]
+
+
+@pytest.mark.parametrize(
+    ("current", "bound", "expected"),
+    [
+        (7, None, "bind"),  # in a topic, delivery not pinned yet
+        (7, 9, "bind"),  # in a topic, delivery pinned to another one
+        (7, 7, "unbind"),  # standing in the topic that already receives them
+        (None, 9, "unbind"),  # in "General" while delivery is pinned elsewhere
+        (None, None, None),  # in "General", nothing pinned: nothing to move
+    ],
+)
+def test_topic_action_covers_every_forum_position(
+    current: int | None, bound: int | None, expected: str | None
+) -> None:
+    assert (
+        keyboards.topic_action(
+            is_forum=True, subscribed=True, current_thread_id=current, bound_thread_id=bound
+        )
+        == expected
+    )
+
+
+def test_topic_action_is_none_outside_forums() -> None:
+    """Plain groups, channels and private chats have no topics at all (ADR 0025)."""
+    assert (
+        keyboards.topic_action(
+            is_forum=False, subscribed=True, current_thread_id=7, bound_thread_id=None
+        )
+        is None
+    )
+
+
+def test_topic_action_is_none_when_not_subscribed() -> None:
+    """ "Attiva promemoria" already binds the topic it is pressed in."""
+    assert (
+        keyboards.topic_action(
+            is_forum=True, subscribed=False, current_thread_id=7, bound_thread_id=None
+        )
+        is None
+    )
+
+
+def test_build_subscription_keyboard_without_topic_action_is_unchanged() -> None:
+    markup = keyboards.build_subscription_keyboard(subscribed=True)
+    data = [button.callback_data for row in markup.inline_keyboard for button in row]
+    assert data == [keyboards.CB_UNSUBSCRIBE]
+
+
+def test_build_subscription_keyboard_adds_the_destination_button_on_its_own_row() -> None:
+    markup = keyboards.build_subscription_keyboard(subscribed=True, topic="bind")
+    (toggle,), (topic,) = markup.inline_keyboard
+    assert toggle.callback_data == keyboards.CB_UNSUBSCRIBE
+    assert topic.callback_data == keyboards.CB_TOPIC_BIND
+    assert keyboards.ACTION_TOPIC_BIND in topic.text
+
+
+def test_build_subscription_keyboard_unbind_variant() -> None:
+    markup = keyboards.build_subscription_keyboard(subscribed=True, topic="unbind")
+    topic = markup.inline_keyboard[1][0]
+    assert topic.callback_data == keyboards.CB_TOPIC_UNBIND
+    assert keyboards.ACTION_TOPIC_UNBIND in topic.text
+
+
+def test_topic_callback_data_carries_no_payload() -> None:
+    """The destination is re-read from the pressed message, never from the payload
+    (ADR 0031): a stale keyboard can only ever act on the topic it is visible in."""
+    assert keyboards.CB_TOPIC_BIND == "sub:topic:on"
+    assert keyboards.CB_TOPIC_UNBIND == "sub:topic:off"

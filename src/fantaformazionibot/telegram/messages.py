@@ -320,6 +320,24 @@ def subscription_topic_unbound() -> str:
     return "\n📌 Torno a mandarli nella chat principale."
 
 
+def subscription_destination(*, bound_here: bool, bound_elsewhere: bool) -> str:
+    """Where reminders land, appended to subscription_status() in forums only (ADR 0031).
+
+    Non-forum chats have no topics at all, so their status text stays untouched.
+    The topic is never named: the Bot API can't resolve one (ADR 0025).
+    """
+    if bound_here:
+        return "\n📌 Li mando in questo topic."
+    if bound_elsewhere:
+        return "\n📌 Li mando in un altro topic di questo gruppo."
+    return "\n📌 Li mando nella chat principale."
+
+
+def subscription_topic_unchanged() -> str:
+    """Toast for a destination button pressed when nothing would move (ADR 0031)."""
+    return "I promemoria arrivano già lì, mister."
+
+
 def subscription_disabled() -> str:
     return "🔕 Promemoria disattivati in questa chat. Se ti penti, /promemoria ti aspetta 😏"
 

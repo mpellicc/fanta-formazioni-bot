@@ -37,9 +37,11 @@ from fantaformazionibot.telegram.commands import (
     confirm_lineup,
     join_roster,
     parse_offsets_args,
+    rebind_topic,
     reset_group_roster,
     set_offsets,
     subscribe,
+    subscription_status_view,
     topic_suffix,
     topic_thread_id,
     undo_group_lineup_confirmation,
@@ -143,6 +145,53 @@ async def unsubscribe_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     text = messages.subscription_disabled() if deleted else messages.subscription_not_enabled()
     await _edit_text(query, text, keyboards.build_subscription_keyboard(subscribed=False))
+
+
+async def topic_bind_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Move delivery into the topic this very button lives in (ADR 0031)."""
+    await _rebind_topic_callback(update, context, thread_id_from_message=True)
+
+
+async def topic_unbind_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Unpin delivery, whichever topic it was pressed from — that is what lets the user
+    undo a binding without walking up to "General" first (ADR 0031)."""
+    await _rebind_topic_callback(update, context, thread_id_from_message=False)
+
+
+async def _rebind_topic_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, *, thread_id_from_message: bool
+) -> None:
+    query = await _gate(update, context)
+    if query is None or query.message is None:
+        return
+    chat = query.message.chat
+    # Moving the destination changes where the whole chat's reminders land: same
+    # chat-wide gate as sub:on/sub:off (ADR 0012).
+    if not await _may_manage(query, chat, context):
+        return
+
+    repository: Repository = context.bot_data["repository"]
+    thread_id = _query_thread_id(query) if thread_id_from_message else None
+    result = rebind_topic(chat, thread_id, repository)
+
+    if not result.subscribed:
+        await query.answer()
+        await _edit_text(
+            query,
+            messages.subscription_not_enabled(),
+            keyboards.build_subscription_keyboard(subscribed=False),
+        )
+        return
+
+    await query.answer("" if result.topic_changed else messages.subscription_topic_unchanged())
+    # The pressed message is re-rendered as the /promemoria view it came from, so the
+    # button flips to its opposite in place instead of leaving a stale keyboard behind.
+    # No topic_suffix() here: that view already states the destination in full, and
+    # repeating it would say the same thing twice in one message.
+    text, markup = subscription_status_view(
+        chat, repository.get_subscription(chat.id), _query_thread_id(query)
+    )
+    await _edit_text(query, text, markup)
 
 
 async def lineup_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -545,6 +594,16 @@ def register(application: BotApp) -> None:
     application.add_handler(
         CallbackQueryHandler(
             unsubscribe_callback, pattern=rf"^{re.escape(keyboards.CB_UNSUBSCRIBE)}$"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            topic_bind_callback, pattern=rf"^{re.escape(keyboards.CB_TOPIC_BIND)}$"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            topic_unbind_callback, pattern=rf"^{re.escape(keyboards.CB_TOPIC_UNBIND)}$"
         )
     )
     application.add_handler(
