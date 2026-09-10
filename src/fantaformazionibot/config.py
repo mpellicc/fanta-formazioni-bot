@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     )
     # If non-empty, commands are answered only in these chats (silence elsewhere).
     allowed_chat_ids: Annotated[tuple[int, ...], NoDecode] = ()
+    # Inline queries carry no chat, so allowed_chat_ids cannot gate them (ADR 0033).
+    # Same semantics: empty means open, which is what production wants.
+    allowed_user_ids: Annotated[tuple[int, ...], NoDecode] = ()
 
     @field_validator(
         "deadline_margin", "mock_kickoff_offset", "urgent_reminder_threshold", mode="before"
@@ -81,9 +84,9 @@ class Settings(BaseSettings):
             return offsets
         return value
 
-    @field_validator("allowed_chat_ids", mode="before")
+    @field_validator("allowed_chat_ids", "allowed_user_ids", mode="before")
     @classmethod
-    def _parse_allowed_chat_ids(cls, value: object) -> object:
+    def _parse_allowed_ids(cls, value: object) -> object:
         if isinstance(value, str):
             stripped = value.strip()
             if not stripped:

@@ -84,7 +84,7 @@
 
 Entrambi sono additivi sopra superfici esistenti e non toccano lo scheduling.
 
-**v1.5 — inline mode.** Rilasciata **separatamente** dalla v1.4: `@bot` in una chat qualsiasi per condividere la card della prossima scadenza senza aggiungere il bot: è la leva di diffusione più forte, ma è una superficie Telegram nuova (setting BotFather + `InlineQueryHandler` + giro di test manuali proprio). Insieme alla v1.4 farebbe una release troppo grossa da testare in-season in un solo passaggio.
+**v1.5 — inline mode** (✅ implementata il 2026-09-10, **ADR 0033** — resta da rilasciare separatamente dalla v1.4). Rilasciata **separatamente** dalla v1.4: `@bot` in una chat qualsiasi per condividere la card della prossima scadenza senza aggiungere il bot: è la leva di diffusione più forte, ma è una superficie Telegram nuova (setting BotFather + `InlineQueryHandler` + giro di test manuali proprio). Insieme alla v1.4 farebbe una release troppo grossa da testare in-season in un solo passaggio.
 
 **Metriche: niente nel bot.** Nessun `/stats`, nessun job di report. Le metriche d'uso sono già servite da `osservatorio-hq` (dashboard locale single-user, separata) che legge questo DB via `ssh` + `docker exec` con `SELECT` read-only. **Il bot è un progetto indipendente e non sa che osservatorio esiste**: `bot_events` (ADR 0028/0029) è logging di dominio che il bot tiene per sé, e il fatto che una dashboard lo legga è affare di osservatorio. Nuove metriche di adozione si aggiungono come *source metrics* lì, non come feature qui. Scartate per lo stesso motivo: `VIEW` SQL come contratto di lettura e la documentazione dei nomi degli event type come superficie pubblica. L'unico lavoro ammesso qui è emettere righe `bot_events` per azioni di dominio genuinamente nuove (es. uno start da deep link).
 
@@ -131,7 +131,7 @@ La storia dettagliata delle sessioni precedenti (v1.0 release prep, "Ho schierat
 
 1. **v1.4, punto 2 — onboarding e condivisione**: `/start` più esplicito, deep link, percorso "aggiungimi al tuo gruppo", welcome in gruppo. Qui i bivi di design sono aperti — AskUserQuestion prima di scrivere, ADR sua.
 2. **Giro di test manuali sul bot dev** prima del tag `v1.4.0`, con provider `mock` (ADR 0016) per generare una giornata ravvicinata. Poi cut di `release-1.4` (Fase 2 di ADR 0017, come per le minor precedenti).
-3. **v1.5 — inline mode**, release separata: setting BotFather + `InlineQueryHandler` + giro di test proprio.
+3. **v1.5 — inline mode**: codice fatto (ADR 0033). Restano i **setting BotFather** su entrambi i bot — Inline Mode con placeholder e `/setinlinefeedback` al 100% — `ALLOWED_USER_IDS` valorizzata nell'environment dev, il giro di test manuali e il tag `v1.5.0`.
 4. **Spike di ricerca sulle fonti dati** (ADR di esito anche se negativo) **prima** di progettare la v2.0.
 
 Non bloccanti, ereditati da sessioni precedenti: secret `FOOTBALL_DATA_API_KEY` da aggiungere su GitHub (non automatizzabile da qui); migrazione VM ad A1.Flex bloccata dalla mancanza di capacità Oracle (procedura in `docs/DEPLOY.md` § "Migrating to a new VM").
