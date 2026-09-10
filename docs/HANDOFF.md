@@ -71,7 +71,7 @@
 
 ❄️ **Aggiornamenti live delle partite (inizio/gol/fine) — congelata il 2026-08-31**: ricerca fatta, esito negativo a costo zero. Nessuna API ufficiale gratuita copre gli eventi live della Serie A alla latenza voluta, e il gol *col marcatore* è ovunque un data-point premium (≥ €49/mese). L'infrastruttura non è il collo di bottiglia. Tabella delle fonti, alternative a pagamento e nota tecnica sugli stati `IN_PLAY`/`PAUSED`/`FINISHED` in **ADR 0026** — leggerla prima di rifare la ricerca.
 
-🔜 **Bottoni di `/promemoria` topic-aware** — non più una patch della 1.2: **ripianificata come primo punto della v1.4** (ADR 0030). Contesto tecnico e motivazione nella sezione "Roadmap corrente" sotto.
+✅ **Bottoni di `/promemoria` topic-aware** (2026-09-10, **ADR 0031**): in un gruppo forum `/promemoria` mostra un secondo bottone — "Manda in questo topic" o "Riporta in chat principale" — e dice nel testo dove atterrano i promemoria. Il buco è chiuso: non serve più `/promemoria_on` (comando legacy) per spostare la consegna.
 
 ## Roadmap corrente — vedi ADR 0030
 
@@ -79,7 +79,7 @@
 
 **v1.4 — crescita e adozione (in-season, additiva).** Obiettivo: rendere il bot più facile da diffondere fuori dal canale ufficiale.
 
-1. **Bottoni di `/promemoria` topic-aware** — il buco già identificato: in un gruppo forum con i promemoria attivi, `/promemoria` mostra solo il bottone di disattivazione, quindi non c'è modo da tastiera di spostare la consegna in un topic e si è costretti a `/promemoria_on`, comando legacy (ADR 0018, Amendment 2026-07-10). `telegram.Chat.is_forum` dice se il gruppo è un forum e `topic_thread_id()` (`telegram/commands.py`) da quale topic arriva il comando, quindi `build_subscription_keyboard` può aggiungere un bottone "manda in questo topic" quando il topic corrente è diverso da `subscriptions.message_thread_id`. Riferimento: ADR 0025.
+1. ✅ **Bottoni di `/promemoria` topic-aware** — fatto, **ADR 0031**: `keyboards.topic_action()` (pura) decide se offrire "Manda in questo topic" o "Riporta in chat principale"; `commands.rebind_topic()` sposta la destinazione senza ripianificare e senza mai creare una subscription; i callback `sub:topic:on`/`sub:topic:off` non portano payload (il topic si rilegge dal messaggio premuto). Nuovo evento `topic_rebind`.
 2. **Onboarding e condivisione** — `/start` più esplicito, deep link `t.me/<bot>?start=…`, percorso "aggiungimi al tuo gruppo", messaggio di benvenuto quando il bot viene aggiunto a un gruppo.
 
 Entrambi sono additivi sopra superfici esistenti e non toccano lo scheduling.
@@ -129,10 +129,9 @@ La storia dettagliata delle sessioni precedenti (v1.0 release prep, "Ho schierat
 
 **Prossimo lavoro pianificato**:
 
-1. **v1.4, punto 1 — bottoni di `/promemoria` topic-aware** (vedi "Roadmap corrente" sopra): ADR-first, poi implementazione. È il pezzo più piccolo e già progettato.
-2. **v1.4, punto 2 — onboarding e condivisione**: `/start` più esplicito, deep link, percorso "aggiungimi al tuo gruppo", welcome in gruppo. Qui i bivi di design sono aperti — AskUserQuestion prima di scrivere, ADR sua.
-3. **Giro di test manuali sul bot dev** prima del tag `v1.4.0`, con provider `mock` (ADR 0016) per generare una giornata ravvicinata. Poi cut di `release-1.4` (Fase 2 di ADR 0017, come per le minor precedenti).
-4. **v1.5 — inline mode**, release separata: setting BotFather + `InlineQueryHandler` + giro di test proprio.
-5. **Spike di ricerca sulle fonti dati** (ADR di esito anche se negativo) **prima** di progettare la v2.0.
+1. **v1.4, punto 2 — onboarding e condivisione**: `/start` più esplicito, deep link, percorso "aggiungimi al tuo gruppo", welcome in gruppo. Qui i bivi di design sono aperti — AskUserQuestion prima di scrivere, ADR sua.
+2. **Giro di test manuali sul bot dev** prima del tag `v1.4.0`, con provider `mock` (ADR 0016) per generare una giornata ravvicinata. Poi cut di `release-1.4` (Fase 2 di ADR 0017, come per le minor precedenti).
+3. **v1.5 — inline mode**, release separata: setting BotFather + `InlineQueryHandler` + giro di test proprio.
+4. **Spike di ricerca sulle fonti dati** (ADR di esito anche se negativo) **prima** di progettare la v2.0.
 
 Non bloccanti, ereditati da sessioni precedenti: secret `FOOTBALL_DATA_API_KEY` da aggiungere su GitHub (non automatizzabile da qui); migrazione VM ad A1.Flex bloccata dalla mancanza di capacità Oracle (procedura in `docs/DEPLOY.md` § "Migrating to a new VM").

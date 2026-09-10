@@ -6,6 +6,7 @@ over OFFSET_PRESETS) so keyboards stay stateless across bot restarts.
 
 from collections.abc import Sequence
 from datetime import timedelta
+from typing import Literal
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -24,6 +25,8 @@ ACTION_LINEUP_UNDO = "Annulla conferma"
 ACTION_ROSTER_JOIN = "Sono un manager"
 ACTION_ROSTER_CLOSE = "Chiudi iscrizioni"
 ACTION_ROSTER_REOPEN = "Riapri iscrizioni"
+ACTION_TOPIC_BIND = "Manda in questo topic"
+ACTION_TOPIC_UNBIND = "Riporta in chat principale"
 
 OFFSET_PRESETS: tuple[timedelta, ...] = (
     timedelta(days=2),
@@ -53,6 +56,11 @@ CB_GROUP_UNDO_PREFIX = "glineup:undo:"
 CB_ROSTER_JOIN = "roster:join"
 CB_ROSTER_CLOSE = "roster:close"
 CB_ROSTER_REOPEN = "roster:reopen"
+# Forum-topic destination (ADR 0031). Deliberately payload-free: the target topic is
+# re-read from the pressed message, which *is* the topic the button lives in, so a
+# stale keyboard can never deliver to a topic other than the one it is visible in.
+CB_TOPIC_BIND = "sub:topic:on"
+CB_TOPIC_UNBIND = "sub:topic:off"
 
 
 def _decode_masked(prefix: str, data: str) -> int:
@@ -126,13 +134,49 @@ def decode_back(data: str) -> int:
     return _decode_masked(CB_BACK_PREFIX, data)
 
 
-def build_subscription_keyboard(*, subscribed: bool) -> InlineKeyboardMarkup:
+TopicAction = Literal["bind", "unbind"]
+
+
+def topic_action(
+    *,
+    is_forum: bool,
+    subscribed: bool,
+    current_thread_id: int | None,
+    bound_thread_id: int | None,
+) -> TopicAction | None:
+    """Which destination button /promemoria should offer, if any (ADR 0031).
+
+    Pure, like planner.py: the callers read Chat.is_forum and the two thread ids,
+    this decides. When not subscribed there is nothing to offer — the visible
+    "Attiva promemoria" already binds the topic it is pressed in (ADR 0025).
+    """
+    if not is_forum or not subscribed:
+        return None
+    if current_thread_id is not None and current_thread_id != bound_thread_id:
+        return "bind"
+    # Either we are standing in the bound topic, or in "General" (thread id None)
+    # while delivery is pinned elsewhere: both times the useful move is to unpin.
+    if bound_thread_id is not None:
+        return "unbind"
+    return None
+
+
+def build_subscription_keyboard(
+    *, subscribed: bool, topic: TopicAction | None = None
+) -> InlineKeyboardMarkup:
     button = (
         InlineKeyboardButton(f"🔕 {ACTION_UNSUBSCRIBE}", callback_data=CB_UNSUBSCRIBE)
         if subscribed
         else InlineKeyboardButton(f"🔔 {ACTION_SUBSCRIBE}", callback_data=CB_SUBSCRIBE)
     )
-    return InlineKeyboardMarkup([[button]])
+    rows = [[button]]
+    if topic == "bind":
+        rows.append([InlineKeyboardButton(f"📌 {ACTION_TOPIC_BIND}", callback_data=CB_TOPIC_BIND)])
+    elif topic == "unbind":
+        rows.append(
+            [InlineKeyboardButton(f"📌 {ACTION_TOPIC_UNBIND}", callback_data=CB_TOPIC_UNBIND)]
+        )
+    return InlineKeyboardMarkup(rows)
 
 
 def build_offsets_keyboard(mask: int) -> InlineKeyboardMarkup:

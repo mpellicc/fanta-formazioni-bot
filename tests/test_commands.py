@@ -5,8 +5,9 @@ from unittest.mock import MagicMock
 import pytest
 from telegram import Chat, Message
 
+from fantaformazionibot.models import Subscription
 from fantaformazionibot.storage.repository import Repository
-from fantaformazionibot.telegram import commands
+from fantaformazionibot.telegram import commands, keyboards
 from fantaformazionibot.telegram.commands import (
     OffsetsParseError,
     is_addressed_to_other_bot,
@@ -207,3 +208,131 @@ def test_reset_group_roster_clears_roster_and_silencing(tmp_path: Path) -> None:
     assert repository.count_group_participants(-100) == 0
     assert repository.is_lineup_confirmed(-100, 7) is False
     assert repository.is_roster_closed(-100) is False
+
+
+def _forum_chat(*, is_forum: bool = True) -> Chat:
+    return Chat(id=-100, type="supergroup", is_forum=is_forum)
+
+
+def _subscribe(repository: Repository, thread_id: int | None) -> None:
+    repository.upsert_subscription(
+        Subscription(
+            chat_id=-100,
+            chat_type="supergroup",
+            reminder_offsets=(3600,),
+            origin="user",
+            message_thread_id=thread_id,
+        )
+    )
+
+
+def test_rebind_topic_moves_delivery_to_the_given_topic(tmp_path: Path) -> None:
+    repository = _group_repository(tmp_path)
+    _subscribe(repository, None)
+
+    result = commands.rebind_topic(_forum_chat(), 42, repository)
+
+    assert result == commands.RebindResult(subscribed=True, topic_changed=True)
+    subscription = repository.get_subscription(-100)
+    assert subscription is not None
+    assert subscription.message_thread_id == 42
+
+
+def test_rebind_topic_unpins_when_given_none(tmp_path: Path) -> None:
+    repository = _group_repository(tmp_path)
+    _subscribe(repository, 42)
+
+    result = commands.rebind_topic(_forum_chat(), None, repository)
+
+    assert result.topic_changed is True
+    subscription = repository.get_subscription(-100)
+    assert subscription is not None
+    assert subscription.message_thread_id is None
+
+
+def test_rebind_topic_to_the_same_topic_changes_nothing(tmp_path: Path) -> None:
+    repository = _group_repository(tmp_path)
+    _subscribe(repository, 42)
+
+    assert commands.rebind_topic(_forum_chat(), 42, repository) == commands.RebindResult(
+        subscribed=True, topic_changed=False
+    )
+
+
+def test_rebind_topic_never_creates_a_subscription(tmp_path: Path) -> None:
+    """A stale keyboard pressed after /promemoria off must not resurrect the chat."""
+    repository = _group_repository(tmp_path)
+
+    result = commands.rebind_topic(_forum_chat(), 42, repository)
+
+    assert result == commands.RebindResult(subscribed=False, topic_changed=False)
+    assert repository.get_subscription(-100) is None
+
+
+def test_rebind_topic_leaves_offsets_alone(tmp_path: Path) -> None:
+    repository = _group_repository(tmp_path)
+    _subscribe(repository, None)
+
+    commands.rebind_topic(_forum_chat(), 42, repository)
+
+    subscription = repository.get_subscription(-100)
+    assert subscription is not None
+    assert subscription.reminder_offsets == (3600,)
+
+
+def test_subscription_status_view_offers_the_move_from_another_topic(tmp_path: Path) -> None:
+    repository = _group_repository(tmp_path)
+    _subscribe(repository, None)
+
+    text, markup = commands.subscription_status_view(
+        _forum_chat(), repository.get_subscription(-100), 42
+    )
+
+    assert "chat principale" in text
+    assert markup.inline_keyboard[1][0].callback_data == keyboards.CB_TOPIC_BIND
+
+
+def test_subscription_status_view_offers_the_undo_from_the_bound_topic(tmp_path: Path) -> None:
+    repository = _group_repository(tmp_path)
+    _subscribe(repository, 42)
+
+    text, markup = commands.subscription_status_view(
+        _forum_chat(), repository.get_subscription(-100), 42
+    )
+
+    assert "in questo topic" in text
+    assert markup.inline_keyboard[1][0].callback_data == keyboards.CB_TOPIC_UNBIND
+
+
+def test_subscription_status_view_names_no_topic_when_bound_elsewhere(tmp_path: Path) -> None:
+    repository = _group_repository(tmp_path)
+    _subscribe(repository, 99)
+
+    text, _ = commands.subscription_status_view(
+        _forum_chat(), repository.get_subscription(-100), 42
+    )
+
+    assert "un altro topic" in text
+
+
+def test_subscription_status_view_is_unchanged_outside_forums(tmp_path: Path) -> None:
+    """Plain groups have no topics: their status text must stay byte-identical."""
+    repository = _group_repository(tmp_path)
+    _subscribe(repository, None)
+    subscription = repository.get_subscription(-100)
+
+    text, markup = commands.subscription_status_view(
+        _forum_chat(is_forum=False), subscription, None
+    )
+
+    assert "📌" not in text
+    assert len(markup.inline_keyboard) == 1
+
+
+def test_subscription_status_view_without_subscription_offers_only_activation() -> None:
+    text, markup = commands.subscription_status_view(_forum_chat(), None, 42)
+
+    assert "📌" not in text
+    assert [button.callback_data for row in markup.inline_keyboard for button in row] == [
+        keyboards.CB_SUBSCRIBE
+    ]

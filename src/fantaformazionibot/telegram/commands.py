@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from telegram import Chat, Message, Update
+from telegram import Chat, InlineKeyboardMarkup, Message, Update
 from telegram.constants import ChatMemberStatus, ChatType, ParseMode
 from telegram.ext import ContextTypes
 
@@ -426,6 +426,73 @@ def subscribe(
     return SubscribeResult(False, settings.reminder_offsets, message_thread_id is not None)
 
 
+@dataclass(frozen=True, slots=True)
+class RebindResult:
+    """Outcome of a destination button press (ADR 0031)."""
+
+    subscribed: bool
+    topic_changed: bool
+
+
+def rebind_topic(chat: Chat, message_thread_id: int | None, repository: Repository) -> RebindResult:
+    """Core of the sub:topic:* callbacks: move (or unpin) the delivery topic.
+
+    Deliberately never creates a subscription — unlike subscribe(), which the button
+    could otherwise resurrect after a disactivation. Like ADR 0025's equivalent path
+    it does not reschedule: PlannedReminder carries no thread id and send_reminder_job
+    re-reads the subscription at send time, so the reminder engine is untouched.
+    Offsets are never read nor written here (ADR 0019/0020's invariant).
+    """
+    existing = repository.get_subscription(chat.id)
+    if existing is None:
+        log_event(
+            "topic_rebind", chat.id, "not_subscribed", repository=repository, chat_type=chat.type
+        )
+        return RebindResult(subscribed=False, topic_changed=False)
+
+    topic_changed = message_thread_id != existing.message_thread_id
+    if topic_changed:
+        repository.update_subscription_thread(chat.id, message_thread_id)
+    log_event(
+        "topic_rebind",
+        chat.id,
+        ("bound" if message_thread_id is not None else "unbound") if topic_changed else "noop",
+        repository=repository,
+        chat_type=chat.type,
+        thread_id=message_thread_id,
+    )
+    return RebindResult(subscribed=True, topic_changed=topic_changed)
+
+
+def subscription_status_view(
+    chat: Chat, subscription: Subscription | None, current_thread_id: int | None
+) -> tuple[str, InlineKeyboardMarkup]:
+    """Body + keyboard of /promemoria, shared with the destination callbacks that
+    re-render the pressed message after moving delivery (ADR 0031)."""
+    is_forum = bool(chat.is_forum)
+    if subscription is None:
+        return (
+            messages.subscription_not_enabled(),
+            keyboards.build_subscription_keyboard(subscribed=False),
+        )
+    text = messages.subscription_status(_to_timedeltas(subscription.reminder_offsets))
+    bound = subscription.message_thread_id
+    if is_forum:
+        text += messages.subscription_destination(
+            bound_here=bound is not None and bound == current_thread_id,
+            bound_elsewhere=bound is not None and bound != current_thread_id,
+        )
+    return text, keyboards.build_subscription_keyboard(
+        subscribed=True,
+        topic=keyboards.topic_action(
+            is_forum=is_forum,
+            subscribed=True,
+            current_thread_id=current_thread_id,
+            bound_thread_id=bound,
+        ),
+    )
+
+
 def unsubscribe(chat: Chat, repository: Repository, application: BotApp) -> bool:
     """Core of /promemoria_off, shared with the sub:off callback. Returns whether it existed."""
     deleted = repository.delete_user_subscription(chat.id)
@@ -560,19 +627,10 @@ async def subscription_status_command(update: Update, context: ContextTypes.DEFA
     if update.message is None or update.effective_chat is None:
         return
     repository: Repository = context.bot_data["repository"]
-    subscription = repository.get_subscription(update.effective_chat.id)
-    if subscription is None:
-        await update.message.reply_text(
-            messages.subscription_not_enabled(),
-            parse_mode=ParseMode.HTML,
-            reply_markup=keyboards.build_subscription_keyboard(subscribed=False),
-        )
-        return
-    await update.message.reply_text(
-        messages.subscription_status(_to_timedeltas(subscription.reminder_offsets)),
-        parse_mode=ParseMode.HTML,
-        reply_markup=keyboards.build_subscription_keyboard(subscribed=True),
-    )
+    chat = update.effective_chat
+    subscription = repository.get_subscription(chat.id)
+    text, markup = subscription_status_view(chat, subscription, topic_thread_id(update.message))
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=markup)
 
 
 OFFSETS_ERROR_MESSAGES = {
