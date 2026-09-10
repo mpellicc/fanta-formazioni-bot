@@ -27,6 +27,7 @@ ACTION_ROSTER_CLOSE = "Chiudi iscrizioni"
 ACTION_ROSTER_REOPEN = "Riapri iscrizioni"
 ACTION_TOPIC_BIND = "Manda in questo topic"
 ACTION_TOPIC_UNBIND = "Riporta in chat principale"
+ACTION_ADD_TO_GROUP = "Aggiungimi a un gruppo"
 
 OFFSET_PRESETS: tuple[timedelta, ...] = (
     timedelta(days=2),
@@ -175,6 +176,29 @@ def build_subscription_keyboard(
     elif topic == "unbind":
         rows.append(
             [InlineKeyboardButton(f"📌 {ACTION_TOPIC_UNBIND}", callback_data=CB_TOPIC_UNBIND)]
+        )
+    return InlineKeyboardMarkup(rows)
+
+
+def build_start_keyboard(*, subscribed: bool, bot_username: str | None) -> InlineKeyboardMarkup:
+    """/start's keyboard: the subscription toggle plus, in private chats, the share
+    button (ADR 0032).
+
+    bot_username is None wherever the share button makes no sense — in a group the
+    bot is already in, there is nothing to add it to. The button is a plain url:
+    it opens Telegram's own group picker and produces no callback of its own.
+    """
+    rows: list[list[InlineKeyboardButton]] = [
+        list(row) for row in build_subscription_keyboard(subscribed=subscribed).inline_keyboard
+    ]
+    if bot_username is not None:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    f"👥 {ACTION_ADD_TO_GROUP}",
+                    url=f"https://t.me/{bot_username}?startgroup=true",
+                )
+            ]
         )
     return InlineKeyboardMarkup(rows)
 

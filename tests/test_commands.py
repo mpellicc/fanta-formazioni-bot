@@ -336,3 +336,35 @@ def test_subscription_status_view_without_subscription_offers_only_activation() 
     assert [button.callback_data for row in markup.inline_keyboard for button in row] == [
         keyboards.CB_SUBSCRIBE
     ]
+
+
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        ([], None),
+        ([""], None),
+        (["canale"], "canale"),
+        (["gruppo-x_1"], "gruppo-x_1"),
+        (["A" * 32], "A" * 32),
+    ],
+)
+def test_parse_start_payload_accepts_slugs(args: list[str], expected: str | None) -> None:
+    assert commands.parse_start_payload(args) == expected
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "con spazio",
+        "chat_id=1",
+        "a" * 33,
+        "sorgente!",
+        "riga\nspezzata",
+    ],
+)
+def test_parse_start_payload_rejects_anything_that_would_break_the_log_line(
+    payload: str,
+) -> None:
+    """The payload is attacker-controllable and lands in `source=` of a line the
+    dashboard parses by key (ADR 0028 §2): the original is never echoed back."""
+    assert commands.parse_start_payload([payload]) == commands.INVALID_START_PAYLOAD
