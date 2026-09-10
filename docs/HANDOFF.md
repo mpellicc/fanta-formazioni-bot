@@ -105,15 +105,51 @@ Entrambi sono additivi sopra superfici esistenti e non toccano lo scheduling.
 **Già decise e chiuse, non riaprire senza motivo:**
 - ✅ **"Ho schierato" nei gruppi (roster-lite)** — implementata il 2026-09-01, **ADR 0027**: roster lazy con chiusura opzionale (`/iscrizioni`), chiunque conferma e solo gli admin chiudono/riaprono, conteggio nella label del bottone, "Riapri iscrizioni" come gestione di chi lascia il gruppo. Limite intrinseco accettato: chi non si registra mai non entra nel roster, quindi "tutti confermato" resta un'approssimazione (il Bot API non enumera i membri non-admin).
 - ❄️ **Aggiornamenti live delle partite** — congelata il 2026-08-31, ricerca a esito negativo a costo zero (nessuna API gratuita copre il gol col marcatore, ovunque data-point premium ≥ €49/mese). Tabella fonti e nota tecnica sugli stati `IN_PLAY`/`PAUSED`/`FINISHED` in **ADR 0026**: leggerla prima di rifare la ricerca.
-- Setting BotFather verificati e da lasciare così: **Allow Groups ON**, **Group Privacy ON** (il bot vede solo i /comandi nei gruppi — non disattivare); Guard / Secretary / Guest / Bot-to-Bot / Threads non servono. "Channel Admin Rights" va attivato solo quando si fanno i canali user-owned (v2.0); Inline Mode solo con la v1.5. "Restrict bot usage" solo sul bot dev (ridondante con `ALLOWED_CHAT_IDS`, difesa in più). Privacy Policy: oggi vale quella standard di Telegram; se il bot cresce, basterebbe una policy di tre righe (memorizziamo solo chat_id e orari).
+
+## Setting BotFather — stato completo
+
+Tutti i setting vanno applicati **su entrambi i bot (dev e prod)** salvo dove indicato.
+Sono manuali per definizione: non c'è API per configurarli e la pipeline non li tocca.
+
+**Lista comandi** (`/setcommands`). Gli scope regolano solo la visibilità nel menu
+autocomplete: l'enforcement admin sta nel codice (ADR 0012).
+
+| Comando | Scope | Stato |
+|---|---|---|
+| `promemoria` | ovunque | ✅ fatto |
+| `personalizza_orari` | Direct Messages + Group Administrators | ✅ fatto |
+| `prossima_scadenza` | ovunque | ✅ fatto |
+| `ho_schierato` | Direct Messages + Group Chats | 🔜 **da aggiungere** — "Silenzia i promemoria della giornata: formazione già schierata" (ADR 0027: nei gruppi è di tutti i membri, non solo degli admin) |
+| `iscrizioni` | Group Chats | 🔜 **da aggiungere** — "Registra i manager del gruppo per il conteggio di /ho_schierato" (mostra lo stato a chiunque; solo i bottoni chiudi/riapri sono gated) |
+| `promemoria_on`, `promemoria_off` | — | 🔜 **da togliere dal menu** (deciso 2026-07-14): sono i comandi legacy pre-bottoni (ADR 0018 Amendment), e `/promemoria` col suo toggle è il percorso promosso. Cambia solo l'autocomplete: gli handler restano e i comandi continuano a funzionare per chi li digita a memoria o li trova in `/help`, che resta l'unico posto a elencarli tutti. `/personalizza_orari` non è toccato: non ha una variante legacy separata |
+
+**Altri setting:**
+
+| Setting | Valore | Stato |
+|---|---|---|
+| Allow Groups | **ON** | ✅ verificato — serve anche al bottone "Aggiungimi a un gruppo" (`?startgroup=true`, ADR 0032) |
+| Group Privacy | **ON** | ✅ verificato — il bot vede solo i `/comandi` nei gruppi. **Non disattivare** |
+| Inline Mode | **ON**, con placeholder (es. "Cerca la prossima scadenza") | 🔜 **da attivare con la v1.5** (ADR 0033). Finché è OFF il codice inline è **inerte**: nessun update arriva |
+| `/setinlinefeedback` | **100%** | 🔜 **da attivare con la v1.5** (ADR 0033). Senza, l'inline funziona ma `chosen_inline_result` non arriva e nessuna condivisione viene registrata |
+| Restrict bot usage | solo sul **bot dev** | ✅ difesa in più, ridondante con `ALLOWED_CHAT_IDS` |
+| Channel Admin Rights | *Post Messages* | ⏸️ solo quando si faranno i canali user-owned (v2.0) |
+| Guard / Secretary / Guest / Bot-to-Bot / Threads | — | non servono |
+| Privacy Policy | standard Telegram | oggi basta; se il bot cresce, basterebbero tre righe (memorizziamo solo chat_id e orari) |
+| About / Description | testi di ADR 0018, con variante taggata `⚠️ BOT DI TEST` sul dev | ✅ fatto |
+
+**Non sono setting BotFather ma si perdono nello stesso giro** (GitHub → Settings →
+Environments, mai a mano sulla VM — ADR 0010):
+
+- `ALLOWED_USER_IDS`: da valorizzare **solo nell'environment dev** con il proprio
+  user id Telegram, altrimenti l'inline del bot dev risponde a chiunque ne conosca
+  lo username. In prod resta **vuota** = inline aperto a tutti, che è il punto della
+  feature. Passata al `.env` da `deploy.yml` come le altre.
+- Secret repo-level `FOOTBALL_DATA_API_KEY`: ancora da aggiungere.
 
 **Operativo/monitoraggio:**
-- **BotFather, su entrambi i bot (dev e prod)**: ✅ lista comandi aggiornata con `promemoria_on`/`promemoria_off`/`promemoria`/`personalizza_orari`. Scope: on/off e `personalizza_orari` visibili solo in *Direct Messages* + *Group Administrators* (Group Chats OFF: i non-admin riceverebbero solo il rifiuto); `/promemoria` visibile ovunque. Gli scope regolano solo la visibilità nel menu, l'enforcement admin è nel codice. **Superato dalla decisione sotto** (2026-07-14): `promemoria_on`/`promemoria_off` vanno tolti dal menu.
 - La stagione 2026-27 inizia il **22 agosto 2026**: il primo reminder reale parte ~21 agosto. Il percorso reminder end-to-end è stato verificato **live sul bot dev** (via provider `mock`, ADR 0016) il 2026-07-08; resta da verificare un reminder "live" reale **in prod** sul canale alla prima giornata.
 - Gli orari delle giornate lontane nel CSV sono placeholder (es. 00:00): si sistemano da soli col refresh giornaliero delle 02:00.
 - **Da fare**: aggiungere il secret repo-level `FOOTBALL_DATA_API_KEY` su GitHub (Settings → Secrets and variables → Actions → Secrets) — senza, il provider football-data.org (ADR 0014) non è attivabile in caso di emergenza. Non fatto perché richiede una registrazione esterna, non automatizzabile da qui.
-- **Da fare**: BotFather, su entrambi i bot — aggiungere `ho_schierato` alla lista comandi con scope **Direct Messages + Group Chats** (con ADR 0027 funziona anche nei gruppi, e lì è di tutti i membri, non solo degli admin). Descrizione proposta (voce ADR 0018): "Silenzia i promemoria della giornata: formazione già schierata". Aggiungere anche `iscrizioni`, scope **Group Chats** (il comando mostra lo stato a chiunque; solo i bottoni di chiusura/riapertura sono gated su admin). Descrizione proposta: "Registra i manager del gruppo per il conteggio di /ho_schierato".
-- **Da fare** (deciso 2026-07-14): togliere `promemoria_on` e `promemoria_off` dalla lista comandi di BotFather su entrambi i bot — sono i comandi "legacy" pre-bottoni (Amendment 2026-07-10 di ADR 0018), `/promemoria` col suo bottone toggle è ormai il percorso promosso. Solo il menu autocomplete cambia: gli handler restano invariati, i due comandi continuano a funzionare per chi li digita a memoria o li trova in `/help` (che resta l'unico posto a elencare *tutti* i comandi, come già deciso in ADR 0018). `/personalizza_orari` non è toccato: è un solo comando sia con sia senza argomenti, non ha una variante "legacy" separata da rimuovere dal menu.
 - Migrazione VM a A1.Flex: **ancora out-of-capacity** (ritentato il 2026-07-07, nessuna disponibilità). Procedura passo-passo in `docs/DEPLOY.md` § "Migrating to a new VM".
 
 **Come lavorare con Matteo (vedi anche memoria persistente):**
@@ -131,7 +167,7 @@ La storia dettagliata delle sessioni precedenti (v1.0 release prep, "Ho schierat
 
 1. **v1.4, punto 2 — onboarding e condivisione**: `/start` più esplicito, deep link, percorso "aggiungimi al tuo gruppo", welcome in gruppo. Qui i bivi di design sono aperti — AskUserQuestion prima di scrivere, ADR sua.
 2. **Giro di test manuali sul bot dev** prima del tag `v1.4.0`, con provider `mock` (ADR 0016) per generare una giornata ravvicinata. Poi cut di `release-1.4` (Fase 2 di ADR 0017, come per le minor precedenti).
-3. **v1.5 — inline mode**: codice fatto (ADR 0033). Restano i **setting BotFather** su entrambi i bot — Inline Mode con placeholder e `/setinlinefeedback` al 100% — `ALLOWED_USER_IDS` valorizzata nell'environment dev, il giro di test manuali e il tag `v1.5.0`.
+3. **v1.5 — inline mode**: codice fatto (ADR 0033). Restano i setting manuali (vedi § "Setting BotFather — stato completo"), il giro di test manuali e il tag `v1.5.0`.
 4. **Spike di ricerca sulle fonti dati** (ADR di esito anche se negativo) **prima** di progettare la v2.0.
 
 Non bloccanti, ereditati da sessioni precedenti: secret `FOOTBALL_DATA_API_KEY` da aggiungere su GitHub (non automatizzabile da qui); migrazione VM ad A1.Flex bloccata dalla mancanza di capacità Oracle (procedura in `docs/DEPLOY.md` § "Migrating to a new VM").
