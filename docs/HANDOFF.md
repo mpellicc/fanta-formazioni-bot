@@ -80,7 +80,7 @@
 **v1.4 — crescita e adozione (in-season, additiva).** Obiettivo: rendere il bot più facile da diffondere fuori dal canale ufficiale.
 
 1. ✅ **Bottoni di `/promemoria` topic-aware** — fatto, **ADR 0031**: `keyboards.topic_action()` (pura) decide se offrire "Manda in questo topic" o "Riporta in chat principale"; `commands.rebind_topic()` sposta la destinazione senza ripianificare e senza mai creare una subscription; i callback `sub:topic:on`/`sub:topic:off` non portano payload (il topic si rilegge dal messaggio premuto). Nuovo evento `topic_rebind`.
-2. **Onboarding e condivisione** — `/start` più esplicito, deep link `t.me/<bot>?start=…`, percorso "aggiungimi al tuo gruppo", messaggio di benvenuto quando il bot viene aggiunto a un gruppo.
+2. ✅ **Onboarding e condivisione** — fatto, **ADR 0032**: payload dei deep link come sola attribuzione (evento `start` con `source=`, validato perché è dato ostile), bottone url "Aggiungimi a un gruppo" su `/start` in privato, benvenuto quando il bot entra in un gruppo (`telegram/chatmember.py`) senza creare nessuna subscription. Nessun comando nuovo.
 
 Entrambi sono additivi sopra superfici esistenti e non toccano lo scheduling.
 
@@ -129,9 +129,8 @@ La storia dettagliata delle sessioni precedenti (v1.0 release prep, "Ho schierat
 
 **Prossimo lavoro pianificato**:
 
-1. **v1.4, punto 2 — onboarding e condivisione**: `/start` più esplicito, deep link, percorso "aggiungimi al tuo gruppo", welcome in gruppo. Qui i bivi di design sono aperti — AskUserQuestion prima di scrivere, ADR sua.
-2. **Giro di test manuali sul bot dev** prima del tag `v1.4.0`, con provider `mock` (ADR 0016) per generare una giornata ravvicinata. Poi cut di `release-1.4` (Fase 2 di ADR 0017, come per le minor precedenti).
-3. **v1.5 — inline mode**, release separata: setting BotFather + `InlineQueryHandler` + giro di test proprio.
-4. **Spike di ricerca sulle fonti dati** (ADR di esito anche se negativo) **prima** di progettare la v2.0.
+1. **Giro di test manuali sul bot dev** prima del tag `v1.4.0`, con provider `mock` (ADR 0016) per generare una giornata ravvicinata. Poi cut di `release-1.4` (Fase 2 di ADR 0017, come per le minor precedenti).
+2. **v1.5 — inline mode**, release separata: setting BotFather + `InlineQueryHandler` + giro di test proprio.
+3. **Spike di ricerca sulle fonti dati** (ADR di esito anche se negativo) **prima** di progettare la v2.0.
 
 Non bloccanti, ereditati da sessioni precedenti: secret `FOOTBALL_DATA_API_KEY` da aggiungere su GitHub (non automatizzabile da qui); migrazione VM ad A1.Flex bloccata dalla mancanza di capacità Oracle (procedura in `docs/DEPLOY.md` § "Migrating to a new VM").

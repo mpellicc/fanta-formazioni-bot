@@ -1,3 +1,4 @@
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -35,16 +36,48 @@ class OffsetsParseError(ValueError):
         self.token = token
 
 
+START_PAYLOAD_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+INVALID_START_PAYLOAD = "invalid"
+
+
+def parse_start_payload(args: Sequence[str]) -> str | None:
+    """The deep-link attribution slug of a /start, or None when there was no payload.
+
+    The payload is attacker-controllable — anyone can craft t.me/<bot>?start=<anything>
+    — and it ends up as `source=` in a log line whose shape is a contract towards the
+    dashboard (ADR 0028 §2/§5). Anything outside the slug charset is therefore reported
+    as INVALID_START_PAYLOAD and the original is never logged.
+    """
+    if not args or not args[0]:
+        return None
+    payload = args[0]
+    return payload if START_PAYLOAD_RE.match(payload) else INVALID_START_PAYLOAD
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message is None or update.effective_chat is None:
         return
     settings: Settings = context.bot_data["settings"]
     repository: Repository = context.bot_data["repository"]
-    subscribed = repository.get_subscription(update.effective_chat.id) is not None
+    chat = update.effective_chat
+    subscribed = repository.get_subscription(chat.id) is not None
+
+    source = parse_start_payload(context.args or [])
+    if source is not None:
+        # A plain /start stays unlogged: it is a read (ADR 0028 §1). A deep-link start
+        # is the genuinely new domain fact ADR 0030 §3 allows recording.
+        log_event(
+            "start", chat.id, "deeplink", repository=repository, chat_type=chat.type, source=source
+        )
+
     await update.message.reply_text(
         messages.start(settings.reminder_offsets),
         parse_mode=ParseMode.HTML,
-        reply_markup=keyboards.build_subscription_keyboard(subscribed=subscribed),
+        reply_markup=keyboards.build_start_keyboard(
+            subscribed=subscribed,
+            # In a group the bot is already in, there is nothing to add it to.
+            bot_username=context.bot.username if chat.type == ChatType.PRIVATE else None,
+        ),
     )
 
 
