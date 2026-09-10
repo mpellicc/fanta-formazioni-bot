@@ -159,7 +159,7 @@ Environments, mai a mano sulla VM — ADR 0010):
 - **Niente `Co-Authored-By` nei commit né footer "Generated with" nelle PR.**
 - Prima di dichiarare finito: `uv run ruff check && uv run ruff format --check && uv run mypy src && uv run pytest` tutti verdi.
 
-**Stato al 2026-09-09 (sessione di pianificazione roadmap):** prod = **v1.3.3** (ultimo tag; verificare sempre con `gh` e `git tag` prima di fidarsi di questo numero). `main` ha gli event log (#38) e `bot_events` (#39); branch di manutenzione stagionale corrente **`release-1.3`**. Roadmap ordinata in **ADR 0030** (PR #40): questa sessione non ha scritto codice applicativo.
+**Stato al 2026-09-10:** prod = **v1.4.0** (ultimo tag; verificare sempre con `gh` e `git tag` prima di fidarsi di questo numero). Branch di manutenzione stagionale corrente **`release-1.4`**, cuttato da `main` al tag. La 1.4 porta inline mode (#44), onboarding e condivisione (#46), event log e `bot_events` (#38, #39), piu' il passaggio a **Python 3.14** su tutta la toolchain (ADR 0034) e uno smoke test in CI che esegue l'immagine prima del push. Roadmap ordinata in **ADR 0030**.
 
 La storia dettagliata delle sessioni precedenti (v1.0 release prep, "Ho schierato" privata e di gruppo, fix della griglia orari) non è più ripetuta qui: sta nelle ADR 0019–0021, 0025, 0027–0029 e nella sezione 2 sopra.
 
