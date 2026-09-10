@@ -15,10 +15,10 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -35,7 +35,7 @@ jobs:
             TAGS="$TAGS,$REPO:dev"
           fi
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -55,7 +55,7 @@ jobs:
       APP_DIR: ${{ github.ref_type == 'tag' && 'fantaformazionibot' || 'fantaformazionibot-dev' }}
       IMAGE_TAG: ${{ github.ref_type == 'tag' && 'latest' || 'dev' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Copy compose file
         uses: appleboy/scp-action@v1
         with:
@@ -98,7 +98,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
