@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 
 REMINDER_JOB_PREFIX = "reminder:"
 STALE_KICKOFF_THRESHOLD = timedelta(days=3)
+# How late a reminder job may fire and still be described by its planned instant.
+SCHEDULING_TOLERANCE = timedelta(seconds=5)
 
 
 async def refresh_calendar_job(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -155,6 +157,22 @@ async def send_reminder_job(context: ContextTypes.DEFAULT_TYPE) -> None:
 
     now = datetime.now(UTC)
     deadline = planner.deadline_for(matchday, settings.deadline_margin)
+    scheduled_for = deadline - timedelta(seconds=reminder.offset_seconds)
+    # The job fires a few milliseconds after the instant it was planned for, and
+    # format_remaining truncates: measuring the remaining time against the clock turns
+    # "1 ora" into "59 minuti" on every single send. A job that ran on time therefore
+    # states the nominal remaining time, which is exactly the subscription's offset. Past
+    # the tolerance the lateness is real (or the deadline moved after the job was
+    # scheduled) and the clock wins: an unpleasant "2 minuti" beats a false "5 minuti".
+    on_time = timedelta(0) <= now - scheduled_for <= SCHEDULING_TOLERANCE
+    reference = scheduled_for if on_time else now
+    logger.info(
+        "Reminder round=%d chat_id=%d offset=%ds drift=%.3fs",
+        reminder.round,
+        reminder.chat_id,
+        reminder.offset_seconds,
+        (now - scheduled_for).total_seconds(),
+    )
     subscription = repository.get_subscription(reminder.chat_id)
     reply_markup = _lineup_keyboard(subscription, reminder.round, repository)
     try:
@@ -163,7 +181,7 @@ async def send_reminder_job(context: ContextTypes.DEFAULT_TYPE) -> None:
             text=messages.reminder(
                 matchday.round,
                 deadline,
-                now,
+                reference,
                 reminder.offset_seconds,
                 settings.urgent_reminder_threshold,
             ),
