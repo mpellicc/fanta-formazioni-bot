@@ -19,4 +19,9 @@ class MockProvider:
         self._kickoff_offset = kickoff_offset
 
     async def fetch_matchdays(self) -> list[Matchday]:
-        return [Matchday(round=_MOCK_ROUND, kickoff=datetime.now(UTC) + self._kickoff_offset)]
+        # Whole minute, like every real provider: fixturedownload parses "%d/%m/%Y %H:%M"
+        # and football-data.org returns ...T16:30:00Z, so deadlines and reminders always
+        # land on a round minute. A kickoff carrying seconds would make dev runs drift
+        # from production timing by up to a minute, which is not what a test aid is for.
+        kickoff = (datetime.now(UTC) + self._kickoff_offset).replace(second=0, microsecond=0)
+        return [Matchday(round=_MOCK_ROUND, kickoff=kickoff)]
