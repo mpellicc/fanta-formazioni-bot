@@ -18,6 +18,7 @@ OFFSETS_USAGE_EXAMPLE = "/personalizza_orari 24h 1h 5m"
 
 CHANNEL_USERNAME = "@fantaformazionireminders"
 MAINTAINER_USERNAME = "@pelliccm"
+SOURCE_URL = "https://github.com/mpellicc/fanta-formazioni-bot"
 
 
 def start(reminder_offsets: Sequence[timedelta]) -> str:
@@ -69,7 +70,8 @@ def help_() -> str:
         "Nei gruppi, /promemoria_on, /promemoria_off e /personalizza_orari "
         "sono riservati agli amministratori (anche i bottoni corrispondenti); "
         "chiudere e riaprire le iscrizioni pure. /ho_schierato invece è di tutti.\n\n"
-        f"Per segnalazioni o suggerimenti scrivi a {MAINTAINER_USERNAME}."
+        f"Per segnalazioni o suggerimenti scrivi a {MAINTAINER_USERNAME}.\n"
+        f'Sono software libero (AGPLv3): il mio codice è <a href="{SOURCE_URL}">su GitHub</a>.'
     )
 
 

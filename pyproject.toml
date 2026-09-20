@@ -3,7 +3,8 @@ name = "fantaformazionibot"
 version = "0.0.0"
 description = "Telegram bot that reminds you to set your Fantacalcio lineup"
 readme = "README.md"
-license = "GPL-3.0-or-later"
+license = "AGPL-3.0-or-later"
+license-files = ["COPYING"]
 authors = [{ name = "Matteo Pelliccione", email = "mat.pelliccione@gmail.com" }]
 requires-python = ">=3.14"
 keywords = ["telegram", "telegram-bot", "fantasy-football", "reminder", "notification"]
