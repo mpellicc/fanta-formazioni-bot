@@ -69,7 +69,9 @@ Contributions are welcome! Please open an issue or a pull request. Before propos
 
 ## License
 
-GNU GPLv3 — see [COPYING](COPYING).
+Copyright (C) 2026 Matteo Pelliccione.
+
+GNU AGPLv3 — see [COPYING](COPYING). If you run a modified version of this bot as a network service, you must offer its source to its users (AGPLv3 §13). Releases tagged before the relicensing remain available under GPLv3; see [ADR 0037](docs/adr/0037-agpl-relicensing.md).
 
 ---
 

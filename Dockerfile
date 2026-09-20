@@ -6,6 +6,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
 FROM python:3.14-slim-bookworm
+LABEL org.opencontainers.image.source="https://github.com/mpellicc/fanta-formazioni-bot" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later"
 WORKDIR /app
 RUN useradd --create-home appuser \
     && mkdir /data \
