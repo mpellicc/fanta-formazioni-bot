@@ -8,7 +8,7 @@ authors = [{ name = "Matteo Pelliccione", email = "mat.pelliccione@gmail.com" }]
 requires-python = ">=3.14"
 keywords = ["telegram", "telegram-bot", "fantasy-football", "reminder", "notification"]
 dependencies = [
-    "python-telegram-bot[job-queue]~=22.8",
+    "python-telegram-bot[job-queue,rate-limiter]~=22.8",
     "pydantic-settings~=2.10",
     "httpx~=0.28",
 ]

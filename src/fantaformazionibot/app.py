@@ -1,6 +1,12 @@
 import logging
 
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
+from telegram.ext import (
+    AIORateLimiter,
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    filters,
+)
 
 from fantaformazionibot.apptypes import BotApp
 from fantaformazionibot.calendar.base import create_provider
@@ -65,7 +71,16 @@ def run() -> None:
     setup_logging()
     settings = Settings()
 
-    application = ApplicationBuilder().token(settings.token).post_init(_post_init).build()
+    # A reminder round fires one send per chat in a single burst; the rate limiter keeps it
+    # under Telegram's limits and, with max_retries > 0, retries a 429 (RetryAfter) instead
+    # of losing the reminder (ADR 0036). The default max_retries is 0 (throttle, no retry).
+    application = (
+        ApplicationBuilder()
+        .token(settings.token)
+        .rate_limiter(AIORateLimiter(max_retries=3))
+        .post_init(_post_init)
+        .build()
+    )
     application.bot_data["settings"] = settings
     application.bot_data["repository"] = Repository(settings.database_path)
     application.bot_data["provider"] = create_provider(settings)
