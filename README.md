@@ -12,12 +12,15 @@ Reminders are posted to the [@fantaformazionireminders](https://t.me/fantaformaz
 - `/promemoria_off` — unsubscribe from reminders in the current chat
 - `/promemoria` — show whether reminders are active and with which offsets
 - `/personalizza_orari` — set custom reminder offsets for the current chat (or `/personalizza_orari default` to reset)
-- `/ho_schierato` — silence the current matchday's remaining reminders once the lineup is set (private chats only, undoable)
+- `/ho_schierato` — mark your lineup as set to silence the current matchday's remaining reminders (undoable)
+- `/iscrizioni` — in groups, show the enrollment roster and (for admins) open or close it
 - `/help` — list of commands
 
-In groups, `/promemoria_on`, `/promemoria_off`, and `/personalizza_orari` are restricted to group administrators. `/ho_schierato` only works in private chats — a group or channel subscription is shared by several distinct managers, so a single confirmation can't correctly silence it for everyone.
+In groups, `/promemoria_on`, `/promemoria_off`, and `/personalizza_orari` are restricted to group administrators, as is opening or closing the roster. `/ho_schierato` works everywhere except channels: in a private chat it silences that chat's reminders, while in a group it records each manager's confirmation against the roster (confirming also enrols you, so no setup is needed) and the shared reminders stop only once every enrolled manager has confirmed.
 
-`/start`, `/promemoria`, and `/personalizza_orari` also come with inline buttons: a toggle to turn reminders on/off, and a grid of common offset presets (plus a "Personalizzati" button for free-form values) so reminders can be managed by tapping instead of typing. Reminders sent to private chats also carry a "✅ Ho schierato" button.
+`/start`, `/promemoria`, and `/personalizza_orari` also come with inline buttons: a toggle to turn reminders on/off, and a grid of common offset presets (plus a "Personalizzati" button for free-form values) so reminders can be managed by tapping instead of typing. Reminders also carry a "✅ Ho schierato" button — the per-manager variant with a roster counter in groups, the simple one in private chats.
+
+The bot also supports inline mode: start a message with its @username in any chat to share the next deadline without adding the bot there.
 
 ## How it works
 
