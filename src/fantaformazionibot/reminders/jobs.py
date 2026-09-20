@@ -24,6 +24,12 @@ REMINDER_JOB_PREFIX = "reminder:"
 STALE_KICKOFF_THRESHOLD = timedelta(days=3)
 # How late a reminder job may fire and still be described by its planned instant.
 SCHEDULING_TOLERANCE = timedelta(seconds=5)
+# A reminder round fires one job per chat at the same instant, dispatched serially on the
+# event loop; APScheduler drops any job whose callback starts later than this past its planned
+# time (default 1s), which would silently lose the tail of a large burst. 30s absorbs the
+# dispatch spread of far more chats than we will ever have while still discarding a stale job
+# (ADR 0036). Scoped to reminder jobs, so the daily refresh keeps the stricter default.
+REMINDER_MISFIRE_GRACE = timedelta(seconds=30)
 
 
 async def refresh_calendar_job(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -109,6 +115,7 @@ def reschedule_reminders(application: BotApp) -> None:
             when=reminder.when,
             name=f"{REMINDER_JOB_PREFIX}{reminder.chat_id}:{reminder.round}:{reminder.offset_seconds}",
             data=reminder,
+            job_kwargs={"misfire_grace_time": int(REMINDER_MISFIRE_GRACE.total_seconds())},
         )
         scheduled += 1
 
