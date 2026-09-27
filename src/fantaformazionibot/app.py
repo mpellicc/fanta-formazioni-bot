@@ -1,4 +1,5 @@
 import logging
+from datetime import time, timedelta
 
 from telegram.ext import (
     AIORateLimiter,
@@ -27,7 +28,12 @@ from fantaformazionibot.telegram.commands import (
     unknown_command,
     unsubscribe_command,
 )
-from fantaformazionibot.telegram.errors import error_handler
+from fantaformazionibot.telegram.errors import (
+    PollingNetworkMonitor,
+    error_handler,
+    polling_noise_digest_job,
+    polling_outage_check_job,
+)
 from fantaformazionibot.telegram.events import record_process_event
 
 logger = logging.getLogger(__name__)
@@ -84,6 +90,7 @@ def run() -> None:
     application.bot_data["settings"] = settings
     application.bot_data["repository"] = Repository(settings.database_path)
     application.bot_data["provider"] = create_provider(settings)
+    application.bot_data["polling_monitor"] = PollingNetworkMonitor()
 
     # With ALLOWED_CHAT_IDS set (dev environment), other chats get silence.
     gate = filters.Chat(chat_id=settings.allowed_chat_ids) if settings.allowed_chat_ids else None
@@ -111,6 +118,13 @@ def run() -> None:
         refresh_calendar_job,
         time=settings.calendar_refresh_time.replace(tzinfo=TIMEZONE),
         name="calendar_refresh",
+    )
+    # Polling network errors are counted, not reported one by one (ADR 0038).
+    job_queue.run_repeating(
+        polling_outage_check_job, interval=timedelta(minutes=1), name="polling_outage_check"
+    )
+    job_queue.run_daily(
+        polling_noise_digest_job, time=time(9, 0, tzinfo=TIMEZONE), name="polling_noise_digest"
     )
 
     logger.info("Starting long polling")
