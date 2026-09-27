@@ -2,6 +2,7 @@ import html
 import json
 import logging
 import traceback
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 
 from telegram import Update
@@ -18,12 +19,75 @@ _TRACEBACK_BUDGET = 2800
 _UPDATE_BUDGET = 700
 
 # PTB's polling loop already retries plain network hiccups (httpx ReadError,
-# TimedOut, ...) forever on its own, so reporting every blip to the debug chat
-# is just noise. Throttle only that specific, already-self-healing case; any
-# other error (handler/job bugs, BadRequest, Forbidden...) is still reported
+# Bad Gateway, ...) forever on its own, so reporting every blip to the debug
+# chat is just noise. Those are only counted: a daily digest reports the noise,
+# and a short alert fires only when polling keeps failing (ADR 0038). Any other
+# error (handler/job bugs, BadRequest, Forbidden...) is still reported
 # immediately, every time.
-_POLLING_NETWORK_ERROR_COOLDOWN = timedelta(minutes=10)
-_last_polling_network_error_notice: datetime | None = None
+POLLING_OUTAGE_THRESHOLD = timedelta(minutes=5)
+# PTB exposes no hook for a successful poll, so recovery is inferred from
+# silence: longer than the worst gap between two failing polls (30s max backoff
+# plus the request's own timeouts).
+POLLING_RECOVERY_QUIET = timedelta(seconds=90)
+
+
+class PollingNetworkMonitor:
+    """In-memory tracking of polling network errors: outage streak + daily counts."""
+
+    def __init__(self) -> None:
+        self.counts: Counter[str] = Counter()
+        self.first_error_at: datetime | None = None
+        self.last_error_at: datetime | None = None
+        self.last_error: str = ""
+        self.alerted = False
+
+    def record(self, error: BaseException, now: datetime) -> None:
+        kind = _error_kind(error)
+        self.counts[kind] += 1
+        if self.first_error_at is None:
+            self.first_error_at = now
+        self.last_error_at = now
+        self.last_error = kind
+
+    def check(self, now: datetime) -> str | None:
+        """Advance the streak; return the debug-chat text to send, if any."""
+        if self.first_error_at is None or self.last_error_at is None:
+            return None
+        if now - self.last_error_at > POLLING_RECOVERY_QUIET:
+            duration = self.last_error_at - self.first_error_at
+            text = (
+                f"✅ Polling recovered after {_minutes(duration)} min of network errors."
+                if self.alerted
+                else None
+            )
+            self.first_error_at = self.last_error_at = None
+            self.alerted = False
+            return text
+        if not self.alerted and now - self.first_error_at > POLLING_OUTAGE_THRESHOLD:
+            self.alerted = True
+            return (
+                f"⚠️ Polling failing for {_minutes(now - self.first_error_at)} min "
+                f"(last: {html.escape(self.last_error)})."
+            )
+        return None
+
+    def digest(self) -> str | None:
+        """Return the last period's noise summary and reset the counts."""
+        if not self.counts:
+            return None
+        summary = ", ".join(f"{n}x {html.escape(kind)}" for kind, n in self.counts.most_common())
+        self.counts.clear()
+        return f"📶 Polling network noise, last 24h: {summary}."
+
+
+def _error_kind(error: BaseException) -> str:
+    # "httpx.ReadError: " / "Bad Gateway": the message is the useful part, minus details.
+    return str(error).split(":", 1)[0].strip() or type(error).__name__
+
+
+def _minutes(delta: timedelta) -> int:
+    return max(1, round(delta.total_seconds() / 60))
+
 
 # Telegram refuses the delivery when the destination stopped accepting our
 # messages. Nothing in the code can fix those and every send site can hit them,
@@ -70,20 +134,17 @@ def _is_transient_polling_error(update: object, context: ContextTypes.DEFAULT_TY
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    global _last_polling_network_error_notice
+    if _is_transient_polling_error(update, context):
+        assert context.error is not None
+        logger.warning("Polling network error: %s", context.error)
+        monitor: PollingNetworkMonitor = context.bot_data["polling_monitor"]
+        monitor.record(context.error, datetime.now(UTC))
+        return
+
     logger.error("Exception while handling an update:", exc_info=context.error)
 
     if is_unwritable_chat_error(context.error):
         return
-
-    if _is_transient_polling_error(update, context):
-        now = datetime.now(UTC)
-        if (
-            _last_polling_network_error_notice is not None
-            and now - _last_polling_network_error_notice < _POLLING_NETWORK_ERROR_COOLDOWN
-        ):
-            return
-        _last_polling_network_error_notice = now
 
     tb = "".join(traceback.format_exception(context.error)) if context.error else "no traceback"
     text = (
@@ -105,3 +166,27 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
         )
     except Exception:
         logger.exception("Failed to report the error to the debug chat")
+
+
+async def _send_to_debug_chat(context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+    settings: Settings = context.bot_data["settings"]
+    try:
+        await context.bot.send_message(
+            chat_id=settings.debug_chat_id, text=text, parse_mode=ParseMode.HTML
+        )
+    except Exception:
+        logger.exception("Failed to send a polling network report to the debug chat")
+
+
+async def polling_outage_check_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    monitor: PollingNetworkMonitor = context.bot_data["polling_monitor"]
+    text = monitor.check(datetime.now(UTC))
+    if text is not None:
+        await _send_to_debug_chat(context, text)
+
+
+async def polling_noise_digest_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    monitor: PollingNetworkMonitor = context.bot_data["polling_monitor"]
+    text = monitor.digest()
+    if text is not None:
+        await _send_to_debug_chat(context, text)

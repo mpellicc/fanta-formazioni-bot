@@ -31,7 +31,8 @@ src/fantaformazionibot/
     keyboards.py         inline keyboard builders + callback_data codec (pure, ADR 0015)
     callbacks.py         CallbackQueryHandler entry points + the "Personalizzati"
                          ConversationHandler (free-form offset input, ADR 0015)
-    errors.py            error handler → DEBUG_CHAT_ID
+    errors.py            error handler → DEBUG_CHAT_ID; polling network errors
+                         only counted: outage alert + daily digest (ADR 0038)
     messages.py          all user-facing Italian texts (HTML parse mode)
   format.py              Italian date/duration formatting (static month names, zoneinfo)
 ```
