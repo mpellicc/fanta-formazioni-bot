@@ -14,8 +14,9 @@
 **Riscrittura completa (v1 → v2, rilasciata come 0.9.0, oggi in prod v0.12.2).** La v1 (Poetry, PTB 21, polling ogni 5s, datetime naive, locale di sistema, zero test/CI) è stata sostituita da zero: uv+ruff+mypy strict+pytest, PTB ~22.8, job `run_once` a orari esatti con dedupe su SQLite, kickoff "pulito" + `DEADLINE_MARGIN` configurabile, provider calendario pluggabile (fixturedownload CSV UTC), testi italiani in HTML parse mode. Motivazioni dettagliate nelle ADR 0001–0009.
 
 **Infrastruttura (tutta funzionante e verificata):**
-- VM **Oracle Cloud Always Free** `VM.Standard.E2.1.Micro` (x86, 1GB RAM + 2GB swap), IP `130.110.70.70`, utente `ubuntu`. SSH: alias `fantabot` in `~/.ssh/config` (chiave `~/.ssh/oracle_fantabot`); chiave di deploy per Actions: `~/.ssh/fantabot_deploy` (privata nel secret `SSH_KEY`).
-- Era prevista la A1.Flex (ARM) ma è sempre out-of-capacity: per questo l'immagine è **multi-arch** (amd64+arm64). Migrare ad A1 quando c'è capacità è banale (stessa procedura DEPLOY.md).
+- VM **Oracle Cloud** `instance-20261006-1144`, `VM.Standard.A1.Flex` (ARM, 1 OCPU / 6 GB, niente swap), Ubuntu 26.04 aarch64, region `eu-milan-1`, **IP pubblico riservato `92.4.167.220`**, utente `ubuntu`. SSH: alias `fantaformazionibot` in `~/.ssh/config` (chiave `~/.ssh/oracle_fantabot`); chiave di deploy per Actions: `~/.ssh/fantabot_deploy` (privata nel secret `SSH_KEY`). L'immagine resta **multi-arch** (amd64+arm64): un ritorno su E2 x86 non richiede modifiche alla build.
+- Tenancy in **Pay As You Go** (dal 2026-10, per la priorità di capacità), ma con risorse solo entro i limiti Always Free; budget sul root compartment (€1/mese, alert a spesa effettiva ≥ 1%) come guardrail (amendment ADR 0009).
+- Il dynamic group `fantaformazionibot-vm` più la policy `fantaformazionibot-vm-run-command` permettono di usare **Run Command** (`oci instance-agent command create`) sulla VM senza SSH, come utente `ocarun` senza `sudo`.
 - **Due istanze sulla stessa VM**: prod (`~/fantaformazionibot`, immagine `:latest`, canale @fantaformazionireminders id `-1002189068048`, deploy da **push di un tag `v*`**) e dev (`~/fantaformazionibot-dev`, immagine `:dev`, debug chat `-1002171697436`, deploy da **ogni push su `main`**). Due bot Telegram distinti (il polling vieta token condivisi). Mapping aggiornato da ADR 0017 (prima: push su `main`/`dev`).
 - **Config gestita dalla pipeline** (ADR 0010): il deploy riscrive `.env` e `compose.yaml` sulla VM dai secrets/vars degli environments GitHub `production`/`development`. MAI modificarli a mano sulla VM. Cambio config = aggiornare il valore su GitHub → rilanciare Deploy.
 - Il bot **dev risponde solo a Matteo** (user id `41755391`) e alla debug chat, via `ALLOWED_CHAT_IDS` (vuota in prod = aperto).
@@ -150,7 +151,13 @@ Environments, mai a mano sulla VM — ADR 0010):
 - La stagione 2026-27 inizia il **22 agosto 2026**: il primo reminder reale parte ~21 agosto. Il percorso reminder end-to-end è stato verificato **live sul bot dev** (via provider `mock`, ADR 0016) il 2026-07-08; resta da verificare un reminder "live" reale **in prod** sul canale alla prima giornata.
 - Gli orari delle giornate lontane nel CSV sono placeholder (es. 00:00): si sistemano da soli col refresh giornaliero delle 02:00.
 - **Da fare**: aggiungere il secret repo-level `FOOTBALL_DATA_API_KEY` su GitHub (Settings → Secrets and variables → Actions → Secrets) — senza, il provider football-data.org (ADR 0014) non è attivabile in caso di emergenza. Non fatto perché richiede una registrazione esterna, non automatizzabile da qui.
-- Migrazione VM a A1.Flex: **ancora out-of-capacity** (ritentato il 2026-07-07, nessuna disponibilità). Procedura passo-passo in `docs/DEPLOY.md` § "Migrating to a new VM".
+- **Guasto host del 2026-10-01**: alle 09:44 UTC l'host della vecchia VM `E2.1.Micro` (`instance-20260706-1614`, IP `130.110.70.70`) si è rotto (notice Oracle COMPUTE-12D). Oracle non ha potuto spostarla perché a Milano non c'era più capacità Micro, quindi è rimasta ferma e **prod è stato giù dal 1 al 6 ottobre**. Ripristino del 2026-10-06:
+  - tenancy passata a Pay As You Go e nuova VM A1.Flex con IP riservato;
+  - DB recuperati da un clone del boot volume della VM morta (`old-boot-clone`, montato in `/mnt/old`), copiati nei volumi con le label di Compose **prima** del primo deploy;
+  - redeploy di dev da `main` e di prod da `v1.4.4`, poi `v1.4.5`.
+
+  I dati sono arrivati intatti: 21 subscription in prod, 2.673 reminder ripianificati. La vecchia istanza è terminata. Il clone viene smontato e staccato da un task schedulato il 2026-10-10 (Claude desktop, `fantabot-old-boot-clone-cleanup`); va poi **cancellato a mano** dalla console. Procedura completa in `docs/DEPLOY.md` § "Migrating to a new VM".
+  - Lezione: i timeout SSH durante la migrazione **non** venivano dalla VM, che era sana, ma dal percorso di rete del client verso Oracle. Prima di fare debug sulla VM, provare da un'altra rete (vedi la nota in fondo a DEPLOY.md).
 
 **Come lavorare con Matteo (vedi anche memoria persistente):**
 - Stile consultivo: **proporre opzioni con trade-off** (AskUserQuestion) prima di decisioni di design/UX/infra; non applicare default in silenzio, anche su dettagli.
@@ -159,7 +166,7 @@ Environments, mai a mano sulla VM — ADR 0010):
 - **Niente `Co-Authored-By` nei commit né footer "Generated with" nelle PR.**
 - Prima di dichiarare finito: `uv run ruff check && uv run ruff format --check && uv run mypy src && uv run pytest` tutti verdi.
 
-**Stato al 2026-09-10:** prod = **v1.4.0** (ultimo tag; verificare sempre con `gh` e `git tag` prima di fidarsi di questo numero). Branch di manutenzione stagionale corrente **`release-1.4`**, cuttato da `main` al tag. La 1.4 porta inline mode (#44), onboarding e condivisione (#46), event log e `bot_events` (#38, #39), piu' il passaggio a **Python 3.14** su tutta la toolchain (ADR 0034) e uno smoke test in CI che esegue l'immagine prima del push. Roadmap ordinata in **ADR 0030**.
+**Stato al 2026-10-06:** prod = **v1.4.5** sulla nuova VM A1 (ultimo tag; la 1.4.5 aggiunge solo bump di tooling dev/CI rispetto alla 1.4.4; verificare sempre con `gh` e `git tag` prima di fidarsi di questo numero). Branch di manutenzione stagionale corrente **`release-1.4`**, cuttato da `main` al tag. La 1.4 porta inline mode (#44), onboarding e condivisione (#46), event log e `bot_events` (#38, #39), piu' il passaggio a **Python 3.14** su tutta la toolchain (ADR 0034) e uno smoke test in CI che esegue l'immagine prima del push. Roadmap ordinata in **ADR 0030**.
 
 La storia dettagliata delle sessioni precedenti (v1.0 release prep, "Ho schierato" privata e di gruppo, fix della griglia orari) non è più ripetuta qui: sta nelle ADR 0019–0021, 0025, 0027–0029 e nella sezione 2 sopra.
 
@@ -169,4 +176,4 @@ La storia dettagliata delle sessioni precedenti (v1.0 release prep, "Ho schierat
 2. **v1.5 — inline mode**: codice fatto (ADR 0033). Restano i setting manuali (vedi § "Setting BotFather — stato completo"), il giro di test manuali e il tag `v1.5.0`.
 3. **Spike di ricerca sulle fonti dati** (ADR di esito anche se negativo) **prima** di progettare la v2.0.
 
-Non bloccanti, ereditati da sessioni precedenti: secret `FOOTBALL_DATA_API_KEY` da aggiungere su GitHub (non automatizzabile da qui); migrazione VM ad A1.Flex bloccata dalla mancanza di capacità Oracle (procedura in `docs/DEPLOY.md` § "Migrating to a new VM").
+Non bloccanti, ereditati da sessioni precedenti: secret `FOOTBALL_DATA_API_KEY` da aggiungere su GitHub (non automatizzabile da qui).
