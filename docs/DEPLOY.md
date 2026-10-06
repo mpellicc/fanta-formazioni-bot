@@ -11,18 +11,20 @@ The pipeline owns the VM state: on every deploy it copies `compose.yaml` and reg
 
 ## One-time VM setup (manual)
 
-1. **Create the VM** in the Oracle Cloud console: `VM.Standard.A1.Flex` (or `VM.Standard.E2.1.Micro`, both Always Free), Ubuntu LTS image, public IP, your SSH public key.
-2. **Install Docker and add swap** (needed on the 1 GB Micro):
+1. **Create the VM** in the Oracle Cloud console: `VM.Standard.A1.Flex` (current host: 1 OCPU / 6 GB, Ubuntu 26.04 aarch64) or `VM.Standard.E2.1.Micro`, both Always Free; Ubuntu LTS image, your SSH public key.
+2. **Reserve the public IP**: instance → Networking → VNIC → IP administration → edit the private IP → *Reserved public IP*. An ephemeral IP is lost if the instance is ever recreated, which would mean updating `SSH_HOST` and every SSH config. If a direct switch is refused, set *No public IP* first, then *Reserved*.
+3. **Install Docker** (and swap, only on the 1 GB Micro — A1 does not need it):
 
    ```bash
    curl -fsSL https://get.docker.com | sudo sh
    sudo usermod -aG docker $USER  # re-login afterwards
+   # E2.1.Micro only:
    sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
    sudo mkswap /swapfile && sudo swapon /swapfile
    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
    ```
 
-3. Generate a dedicated deploy key pair locally, authorize the public half on the VM, and keep the private half for the `SSH_KEY` secret:
+4. Generate a dedicated deploy key pair locally, authorize the public half on the VM, and keep the private half for the `SSH_KEY` secret:
 
    ```bash
    ssh-keygen -t ed25519 -f ~/.ssh/fantabot_deploy -C "github-actions-deploy" -N ""
@@ -71,13 +73,13 @@ git push origin v1.1.0
 
 Pushing the tag builds the image, tags it `:X.Y.Z` + `:latest`, deploys production, and publishes the GitHub Release — all in `deploy.yml`. There is no version bump commit and no separate "Prepare release" step; `pyproject.toml` does not track a version (ADR 0017).
 
-**Seasonal maintenance branch** (`release-X.Y`, cut from `main` at that minor's tag — currently **`release-1.3`**, cut at `v1.3.0`; `release-1.0`, `release-1.1` and `release-1.2` are retired): during the season, in-season bugfixes are fixed on `main` first (so the trunk never regresses), then cherry-picked onto the release branch and tagged as a patch:
+**Seasonal maintenance branch** (`release-X.Y`, cut from `main` at that minor's tag — currently **`release-1.4`**, cut at `v1.4.0`; `release-1.0` through `release-1.3` are retired): during the season, in-season bugfixes are fixed on `main` first (so the trunk never regresses), then cherry-picked onto the release branch and tagged as a patch:
 
 ```bash
-git checkout release-1.3 && git pull
+git checkout release-1.4 && git pull
 git cherry-pick <fix-commit-sha>   # the fix, already merged into main
-git tag v1.3.1
-git push origin release-1.3 v1.3.1
+git tag v1.4.6
+git push origin release-1.4 v1.4.6
 ```
 
 Never fix directly on the release branch first — always fix on `main`, then cherry-pick down, to avoid the fix silently missing from the next `main`-based version.
@@ -96,18 +98,35 @@ A **minor** does not need the release branch: tag it on `main` and push, exactly
 
 ## Migrating to a new VM
 
-The current VM is `VM.Standard.E2.1.Micro` (Always Free); `VM.Standard.A1.Flex` (ARM, 6+ GB, also Always Free) is preferred when Oracle has capacity, which is intermittent — retrying VM creation is the only way to find out. The image is already multi-arch (amd64+arm64, ADR 0009), so no build changes are needed either way.
+The current VM is `VM.Standard.A1.Flex` (ARM, 1 OCPU / 6 GB, Always Free), migrated from an `E2.1.Micro` in October 2026 after a host failure (see `docs/HANDOFF.md`). The image is multi-arch (amd64+arm64, ADR 0009), so no build changes are needed in either direction. Moving between x86 (E2) and ARM (A1) is **always a new instance**, never a resize: Oracle can't change a shape across architectures, and the boot image differs.
 
-1. **Create the new VM** in the Oracle Cloud console (Ubuntu LTS, public IP, your personal SSH public key). Oracle's E2.1.Micro and A1.Flex Always Free quotas are separate pools, so the old VM can keep running during the migration (zero-downtime cutover).
-2. **Install Docker and add swap** — same commands as [one-time VM setup](#one-time-vm-setup-manual) above.
-3. **Authorize the existing deploy key** on the new VM (reuse the same key pair, no new `SSH_KEY` secret needed):
+The DB is the only state worth carrying over: losing `subscriptions` silently unsubscribes every user/group that ran `/promemoria_on`. `matchdays` regenerates from the calendar feed; losing `sent_reminders`/`lineup_confirmations` only risks a duplicate or un-silenced reminder. **No bot may start on the new VM before its DB is in place**: an empty prod DB comes up with no subscriptions and no dedupe markers.
+
+1. **Create the new VM** and set it up as in [one-time VM setup](#one-time-vm-setup-manual) (reserved public IP, Docker, swap only on Micro). Oracle's E2.1.Micro and A1.Flex Always Free quotas are separate pools, so a still-running old VM can keep serving during the migration.
+2. **Authorize the existing deploy key** on the new VM (same key pair, no new `SSH_KEY` secret):
    ```bash
    ssh-copy-id -f -i ~/.ssh/fantabot_deploy.pub ubuntu@<NEW_VM_IP>
    ```
-4. **Back up the DB on the old VM**, for each instance you care about preserving (at minimum prod, since it may hold real user/group subscriptions — dev's are just test data). Use the [DB backup](#operations) command with the matching volume name (`fantaformazionibot_bot-data` for prod, `fantaformazionibot-dev_bot-data` for dev). Losing `subscriptions` silently unsubscribes every user/group that ran `/promemoria_on` — this is the one table worth carrying over; `matchdays` regenerates from the calendar feed and losing `sent_reminders`/`lineup_confirmations` only risks a duplicate or un-silenced reminder.
+3. **Get the DB files**, by one of two routes:
+   - **Old VM still running**: stop both bots there (`docker compose stop` in each app directory, so the WAL is checkpointed and nothing writes afterwards), then copy each volume's `_data/` directory to the new VM (e.g. `sudo tar -C /var/lib/docker/volumes -czf - fantaformazionibot_bot-data/_data fantaformazionibot-dev_bot-data/_data | ssh <new-vm> 'sudo tar -C /tmp/old -xzf -'`).
+   - **Old VM dead** (won't boot, e.g. no host capacity): in the console, Storage → Boot Volumes → the old instance's boot volume → **Create clone** (e.g. `old-boot-clone`), then on the new instance Attached block volumes → **Attach** → the clone, Paravirtualized, Read/Write. On the VM, `lsblk` shows it (typically `sdb`), and its root partition is `sdb1`. Mount it with `sudo mkdir -p /mnt/old && sudo mount /dev/sdb1 /mnt/old`. The volumes are under `/mnt/old/var/lib/docker/volumes/`.
+     - ⚠️ **Relabel the clone's root right away**: `sudo e2label /dev/sdb1 old-rootfs`. Ubuntu cloud images mount `/` by `LABEL=cloudimg-rootfs`, and the clone carries the same label, so a reboot while it's attached may boot from the old disk.
+4. **Create the volumes with Compose's labels and copy the DBs in, before any deploy**. The labels make the first `docker compose up` adopt the volume instead of creating an empty one. Copy the whole directory, including `-wal`/`-shm`: after a crash, recent writes may live only in the WAL.
+   ```bash
+   SRC=/mnt/old/var/lib/docker/volumes   # or wherever step 3 put them
+   for v in fantaformazionibot fantaformazionibot-dev; do
+     docker volume create --label com.docker.compose.project=$v \
+                          --label com.docker.compose.volume=bot-data ${v}_bot-data
+     sudo cp -a $SRC/${v}_bot-data/_data/. /var/lib/docker/volumes/${v}_bot-data/_data/
+     sudo chown 1000:0 /var/lib/docker/volumes/${v}_bot-data/_data   # 1000 = appuser in the image
+   done
+   ```
+   Optionally check a **copy** (not the volume itself, since opening it checkpoints the WAL): `sqlite3 copy.db 'PRAGMA integrity_check; SELECT count(*) FROM subscriptions;'` (the VM has no `sqlite3`: run it in `alpine` with `apk add sqlite`).
 5. **Update the `SSH_HOST` secret** (repository-level) with the new IP.
-6. **Re-run Deploy for both bots** (Actions → Deploy → Run workflow, once from `main` for dev, once from the current production `vX.Y.Z` tag for prod). The pipeline creates the app directories, `compose.yaml` and `.env` from scratch, and the first `docker compose up -d` creates fresh empty volumes on the new VM.
-7. **Restore the DB** on the new VM: stop the container (`docker compose stop` in the app directory), copy the backed-up file into the new volume (reverse of the backup command: `docker run --rm -v <volume>:/data -v $PWD:/backup alpine cp /backup/fantaformazionibot.db /data/`), then `docker compose start`.
-8. **Verify** both bots on the new VM (`docker compose logs -f` in each app directory, and check `/promemoria` reflects a previously-known subscription) before decommissioning anything.
-9. **Terminate the old VM** in the Oracle console once confirmed.
-10. **Update the IP** recorded in `docs/HANDOFF.md`.
+6. **Deploy both bots** (Actions → Deploy → Run workflow, once from `main` for dev, once from the current production `vX.Y.Z` tag for prod: check `git tag --sort=-v:refname | head -1`). The pipeline creates the app directories, `compose.yaml` and `.env`. Then `docker volume ls` must still show exactly the two `*_bot-data` volumes.
+7. **Verify** both bots (`docker compose ps` and `docker compose logs --tail 50` in each app directory: "Scheduled N reminders" with N in line with the subscriptions), and check that `/promemoria` from a previously subscribed chat shows the subscription.
+8. **Terminate the old VM** in the console once confirmed. If it's merely stuck (e.g. out of capacity), Oracle may still bring it back later, and it would then poll Telegram with the same tokens. Its boot volume can go too once a clone holds the data.
+9. **Clean up the clone** after a few days of normal running: `sudo umount /mnt/old`, detach `old-boot-clone` from the instance, delete it.
+10. **Update the VM details** recorded in `docs/HANDOFF.md`.
+
+**If SSH to the new VM times out**: check the Oracle side before debugging the VM. Look at the security list (TCP 22 ingress), the route table (0.0.0.0/0 → internet gateway), and the console history (`oci compute console-history capture`, which shows whether cloud-init and `ssh.service` started). If all of that is fine, test from a different network: in October 2026 the timeouts came from the client's network path, not from the VM. Run Command can reach the VM without SSH, but only after a dynamic group matching the instance plus a policy granting it `use instance-agent-command-execution-family`. It runs as the unprivileged `ocarun` user (no `sudo`), and its text output is truncated after about 1 KB.
