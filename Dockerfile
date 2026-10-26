@@ -5,7 +5,7 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
-FROM python:3.14-slim-bookworm
+FROM python:3.15-slim-bookworm
 LABEL org.opencontainers.image.source="https://github.com/mpellicc/fanta-formazioni-bot" \
       org.opencontainers.image.licenses="AGPL-3.0-or-later"
 WORKDIR /app
